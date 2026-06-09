@@ -1,0 +1,5 @@
+rootProject.name = 'adclick'
+
+include 'apps:ad-api'
+include 'apps:ad-management'
+include 'apps:ad-click'
