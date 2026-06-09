@@ -60,14 +60,24 @@
 
 ### Valkey (Redis 대신)
 
-> 🔍 **확인 필요**: Redis의 SSPL 라이선스 전환은 2024년에 있었으며, 이후 Valkey 최신 버전과 AWS ElastiCache Valkey 지원 상태를 게시 전 확인하세요.
+**배경: Redis 라이선스 변천사**
 
-2024년 Redis가 오픈소스 라이선스(BSD)에서 **SSPL**로 전환했습니다. SSPL은 SaaS 형태로 서비스를 제공하는 경우 소스 공개 의무가 생기는 라이선스라 클라우드 사업자들이 Redis를 그대로 쓰기 어려워졌습니다. 이에 Redis 커뮤니티가 포크해서 만든 것이 **Valkey**입니다.
+2024년 3월, Redis가 오픈소스 라이선스(BSD)에서 **SSPL/RSALv2**로 전환했습니다. SSPL은 SaaS 형태로 서비스를 제공하는 경우 소스 공개 의무가 생기는 라이선스라, AWS·GCP 같은 클라우드 사업자들이 Redis를 그대로 제공하기 어려워졌습니다. 이에 Linux Foundation 주도로 AWS·Google·Oracle 등이 참여해 Redis 7.2.4를 BSD 라이선스로 포크한 것이 **Valkey**입니다.
 
-왜 Valkey를 선택했냐면:
-- **Redis 7.2 API 완전 호환** — Spring Data Redis, Lua Script 그대로 사용 가능
-- **AWS ElastiCache가 Valkey 공식 지원** — 배포 환경과 자연스럽게 연결
-- **LocalStack으로 로컬 에뮬레이션 가능** — 개발 환경 이슈 없음
+이후 2025년 5월, Redis는 Redis 8부터 **AGPLv3(OSI 승인 오픈소스 라이선스)**도 추가했습니다. SSPL 전환에 대한 커뮤니티 반발과 창시자 antirez 복귀가 계기가 됐습니다. 즉, Redis도 다시 오픈소스 선택지가 생긴 상태입니다.
+
+**그럼에도 Valkey를 선택한 이유:**
+
+| 비교 항목 | Redis 8 (AGPLv3) | Valkey 9.1 |
+|-----------|-----------------|------------|
+| 라이선스 | AGPLv3 (소스 공개 의무) | BSD (제한 없음) |
+| AWS ElastiCache | 지원 종료 방향 | **Valkey 9.0 공식 지원 (2026년 5월 GA)** |
+| Spring Data Redis 호환 | ✅ | ✅ (API 완전 호환) |
+| 최신 버전 | Redis 8.x | **Valkey 9.1.0 (2026-05-19)** |
+
+AGPLv3는 OSI 승인 오픈소스이지만, 서비스에 사용할 경우 수정한 소스를 공개해야 하는 의무가 있습니다. BSD인 Valkey는 그런 제약이 없고, 이미 AWS ElastiCache가 Valkey를 전담 지원하는 방향으로 굳어졌습니다. 새 프로젝트라면 Valkey가 더 자연스러운 선택입니다.
+
+Valkey는 Redis 7.2.4 포크에서 시작해 현재 **9.1.0(2026-05-19)**까지 독자적으로 발전했습니다. I/O 스레딩 모델 개선, 512byte 페이로드 기준 **210만 RPS** 처리 등 성능 면에서도 눈에 띄는 성장을 보여주고 있습니다.
 
 ---
 
@@ -377,11 +387,11 @@ Round Robin이 4순위인 이유: 잘못돼도 직접적인 금전 오류가 아
 
 ## 참고자료
 
-> 🔍 **게시 전 확인 필요**: 아래 링크의 최신 버전 및 변경사항을 2026년 5월 기준으로 확인하세요.
-
 - [Valkey 공식 사이트](https://valkey.io)
-- [Redis SSPL 라이선스 변경 공지 (2024)](https://redis.io/blog/redis-adopts-dual-source-available-licensing/)
-- [AWS ElastiCache for Valkey](https://aws.amazon.com/elasticache/valkey/)
+- [Valkey 9.1 릴리즈 노트](https://valkey.io/download/releases/)
+- [Redis SSPL 라이선스 변경 공지 (2024.03)](https://www.theregister.com/2024/03/22/redis_changes_license/)
+- [Redis AGPLv3 추가 공지 (2025.05)](https://redis.io/blog/agplv3/)
+- [AWS ElastiCache for Valkey — Valkey 9.0 GA (2026.05)](https://aws.amazon.com/about-aws/whats-new/2026/05/valkey-amazon-elasticache/)
 - [Bucket4j 공식 문서](https://bucket4j.com)
 - [Spring Data Redis 공식 문서](https://docs.spring.io/spring-data/redis/reference/)
 - [Outbox Pattern — microservices.io](https://microservices.io/patterns/data/transactional-outbox.html)
