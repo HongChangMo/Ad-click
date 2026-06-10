@@ -4,71 +4,75 @@
 
 ---
 
-## Last Updated: 2026-06-09 (Session 002)
+## Last Updated: 2026-06-10 (Session 003)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew build` → BUILD SUCCESSFUL (전체 3개 모듈)
-- `./gradlew :apps:ad-api:test` → `contextLoads` PASSED
-- `./gradlew :apps:ad-management:test` → `DependencyDirectionTest` PASSED
-- 모든 feature status: `not_started` (세팅만 완료, 기능 구현 미시작)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 9개 테스트 PASS)
+  - `AdServiceTest` (3) — Unit
+  - `AdJpaRepositoryTest` (1) — Integration (MySQL Testcontainer)
+  - `AdApiE2ETest` (3) — E2E (MySQL + Redis Testcontainer)
+  - `AdClickApplicationTest` (1) — Context load
+  - `DependencyDirectionTest` (1) — 의존 방향 단방향 확인
+- `ad-crud` feature: **done**
 
 ---
 
 ## Changes This Session
 
-- Gradle 8.14.5 멀티모듈 프로젝트 뼈대 구성 완료
-- Spring Boot 3.5.0 적용 (3.3.5 EOL — Initializr 지원 종료로 변경)
-- Java 21 Toolchain 설정 (시스템 기본 Java 17 → Corretto 21 자동 선택)
-- 3개 모듈 각각 4계층 패키지 구조 생성
-- `junit-platform-launcher` 명시 추가 (Spring Boot 3.5.0 + Gradle 8 호환성)
-- 총 6개 커밋
+- `apps/ad-management/src/main/java/com/adclick/management/`
+  - `domain/Ad.java`, `domain/AdStatus.java`
+  - `infrastructure/AdJpaRepository.java`
+  - `application/AdService.java`, `application/AdNotFoundException.java`
+  - `interfaces/AdController.java`, DTOs (AdRegisterRequest, AdRegisterResponse, AdStatusChangeRequest)
+- `apps/ad-management/build.gradle` — Testcontainers 의존성 추가
+- `apps/ad-api/build.gradle` — `spring-boot-starter-web` 명시 추가, Testcontainers 추가
+- `apps/ad-api/src/test/AdClickApplicationTest.java` — Testcontainers 방식으로 전환
+- `apps/ad-management/src/test/TestApplication.java` — DataJpaTest용 SpringBootConfiguration
+- `apps/ad-management/src/test/.../AdServiceTest.java` — Unit test
+- `apps/ad-management/src/test/.../AdJpaRepositoryTest.java` — Integration test
+- `apps/ad-api/src/test/AdApiE2ETest.java` — E2E test
 
 ---
 
 ## Still Broken or Unverified
 
-- 어떤 비즈니스 기능도 구현되지 않음 — 모든 feature `not_started`
-- `bootRun` 미검증 (DB/Valkey 연결 필요)
+- `bootRun` 미검증 (로컬 DB/Valkey 연결 필요)
+- `balance-charge` ~ `reconciliation-batch` 모든 feature `not_started`
 
 ---
 
 ## Next Best Action
 
-**`ad-crud` (priority 1) 구현 시작**
-
-```bash
-# 1. feature_list.json 에서 ad-crud status → in_progress 변경
-# 2. 구현 시작
-./gradlew :apps:ad-management:test  # 테스트 기준
-```
+**`balance-charge` (priority 2) 구현 시작**
 
 구현 대상:
-- `apps/ad-management` 도메인 계층: Ad 엔티티, AdStatus enum
-- `apps/ad-management` infrastructure: AdRepository (JPA)
-- `apps/ad-management` application: AdService (등록, 상태 변경)
-- `apps/ad-management` interfaces: AdController (POST /api/v1/ads, PATCH /api/v1/ads/{id}/status)
+- `AdBalance` 엔티티 (`ad_balances` 테이블) — domain
+- `BalanceTransaction` 엔티티 (`balance_transactions` 테이블) — domain
+- `AdBalanceJpaRepository`, `BalanceTransactionJpaRepository` — infrastructure
+- `BalanceService` — application: `charge(adId, amount)` 메서드
+  - 잔액 증가 + balance_transactions INSERT (type=CHARGE)
+  - EXHAUSTED → ACTIVE 자동 전환 (Valkey 큐 재진입은 다음 단계)
+- `BalanceController` — interfaces: POST /api/v1/ads/{adId}/balance/charge, GET /api/v1/ads/{adId}/balance
 
 **건드리지 말아야 할 것**
-- 설계 문서는 구현 중 변경하지 않음 (변경 필요 시 별도 섹션에 기록)
+- 설계 문서, 기존 테스트
 
 ---
 
 ## Commands
 
 ```bash
-# 프로젝트 빌드
-./gradlew build
-
-# 전체 테스트 실행
+# 전체 테스트
 ./gradlew test
-
-# API 서버 실행
-./gradlew :apps:ad-api:bootRun
 
 # 특정 모듈 테스트
 ./gradlew :apps:ad-management:test
-./gradlew :apps:ad-click:test
+./gradlew :apps:ad-api:test
+
+# 특정 테스트 클래스
+./gradlew :apps:ad-management:test --tests "com.adclick.management.application.AdServiceTest"
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest"
 ```

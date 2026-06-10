@@ -8,13 +8,13 @@
       "area": "ad-management",
       "title": "광고 등록 및 상태 관리 API",
       "user_visible_behavior": "POST /api/v1/ads 로 광고를 등록할 수 있고, PATCH /api/v1/ads/{adId}/status 로 ACTIVE/PAUSED 상태를 변경할 수 있다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "POST /api/v1/ads 호출 시 201 응답과 함께 광고 ID가 반환된다.",
         "PATCH /api/v1/ads/{adId}/status 로 PAUSED 전환 후 GET으로 상태 확인한다.",
         "존재하지 않는 광고 ID로 상태 변경 시 404가 반환된다."
       ],
-      "evidence": "",
+      "evidence": "AdApiE2ETest: 3개 E2E 테스트 PASS (2026-06-10). AdServiceTest: 3개 유닛 테스트 PASS. AdJpaRepositoryTest: 1개 통합 테스트 PASS.",
       "notes": "ads 테이블에 status 컬럼: ACTIVE | PAUSED | EXHAUSTED"
     },
     {

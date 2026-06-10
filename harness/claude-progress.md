@@ -7,12 +7,56 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `ad-crud` (priority 1) — 광고 등록 및 상태 관리 API |
-| Current blocker | 없음 — 프로젝트 뼈대 완성 |
+| Highest priority unfinished feature | `balance-charge` (priority 2) — 광고 잔액 충전 API |
+| Current blocker | 없음 — ad-crud 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 003 — 2026-06-10
+
+**Goal**
+ad-crud (priority 1) — 광고 등록 및 상태 관리 API 구현
+
+**Completed**
+- `Ad` 엔티티, `AdStatus` enum (ACTIVE/PAUSED/EXHAUSTED) — domain 계층
+- `AdJpaRepository` — infrastructure 계층 (Spring Data JPA)
+- `AdService` — application 계층 (register, changeStatus, getAd)
+- `AdNotFoundException` — `@ResponseStatus(NOT_FOUND)` 처리
+- `AdController` — interfaces 계층 (POST /api/v1/ads, PATCH /{adId}/status, GET /{adId})
+- DTO: `AdRegisterRequest`, `AdRegisterResponse`, `AdStatusChangeRequest` (record)
+- Testcontainers 의존성 추가 (ad-management, ad-api 모듈)
+- `ad-api`에 `spring-boot-starter-web` 명시적 추가 (`@PathVariable` 컴파일 classpath 필요)
+- `AdClickApplicationTest` Testcontainers 방식으로 전환 (JPA/Redis 컴포넌트 추가로 기존 exclusion 방식 불가)
+- `TestApplication.java` 추가 (ad-management 통합 테스트용 `@SpringBootApplication`)
+- 테스트 3종: `AdServiceTest`(Unit), `AdJpaRepositoryTest`(Integration), `AdApiE2ETest`(E2E)
+
+**Verification run**
+```
+./gradlew test → BUILD SUCCESSFUL
+  - AdServiceTest: 3 PASSED
+  - AdJpaRepositoryTest: 1 PASSED (MySQL Testcontainer)
+  - AdApiE2ETest: 3 PASSED (MySQL + Redis Testcontainer)
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+```
+
+**Evidence recorded**
+- feature_list.json: ad-crud status → done
+
+**Known issues / Lessons**
+- Spring Boot 3.5 + Gradle → `@PathVariable`에 명시적 이름 필요 (`-parameters` 플래그 없을 때)
+- `@DataJpaTest` + `Replace.NONE` 시 `ddl-auto` 기본값 없음 → `@TestPropertySource`로 명시 필요
+- 멀티모듈에서 `@DataJpaTest` 사용 시 `@SpringBootConfiguration`이 없으면 실패 → test 소스에 `TestApplication` 추가
+
+**Next best action**
+`balance-charge` (priority 2) 구현:
+- `AdBalance` 엔티티, `BalanceTransaction` 엔티티 추가
+- `BalanceService`: POST /api/v1/ads/{adId}/balance/charge
+- EXHAUSTED → ACTIVE 자동 전환 로직
 
 ---
 
