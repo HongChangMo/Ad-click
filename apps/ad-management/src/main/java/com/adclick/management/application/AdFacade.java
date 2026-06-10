@@ -1,36 +1,39 @@
 package com.adclick.management.application;
 
+import com.adclick.management.application.info.AdInfo;
 import com.adclick.management.domain.Ad;
+import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdStatus;
-import com.adclick.management.infrastructure.AdJpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class AdService {
+public class AdFacade {
 
-    private final AdJpaRepository adRepository;
+    private final AdRepository adRepository;
 
-    public AdService(AdJpaRepository adRepository) {
+    public AdFacade(AdRepository adRepository) {
         this.adRepository = adRepository;
     }
 
     @Transactional
-    public Ad register(Long advertiserId, String name) {
-        return adRepository.save(Ad.of(advertiserId, name));
+    public AdInfo register(Long advertiserId, String name) {
+        Ad ad = adRepository.save(Ad.of(advertiserId, name));
+        return AdInfo.from(ad);
     }
 
     @Transactional
-    public Ad changeStatus(Long adId, AdStatus newStatus) {
+    public AdInfo changeStatus(Long adId, AdStatus newStatus) {
         Ad ad = adRepository.findById(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
         ad.changeStatus(newStatus);
-        return ad;
+        return AdInfo.from(ad);
     }
 
     @Transactional(readOnly = true)
-    public Ad getAd(Long adId) {
-        return adRepository.findById(adId)
+    public AdInfo getAd(Long adId) {
+        Ad ad = adRepository.findById(adId)
                 .orElseThrow(() -> new AdNotFoundException(adId));
+        return AdInfo.from(ad);
     }
 }

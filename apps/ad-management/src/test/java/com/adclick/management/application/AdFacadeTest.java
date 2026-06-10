@@ -1,8 +1,9 @@
 package com.adclick.management.application;
 
+import com.adclick.management.application.info.AdInfo;
 import com.adclick.management.domain.Ad;
+import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdStatus;
-import com.adclick.management.infrastructure.AdJpaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -17,24 +18,23 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
 @ExtendWith(MockitoExtension.class)
-class AdServiceTest {
+class AdFacadeTest {
 
     @Mock
-    private AdJpaRepository adRepository;
+    private AdRepository adRepository;
 
     @InjectMocks
-    private AdService adService;
+    private AdFacade adFacade;
 
     @Test
-    void register_returns_active_ad() {
+    void register_returns_active_ad_info() {
         Ad ad = Ad.of(1L, "Summer Sale");
         given(adRepository.save(any(Ad.class))).willReturn(ad);
 
-        Ad result = adService.register(1L, "Summer Sale");
+        AdInfo result = adFacade.register(1L, "Summer Sale");
 
-        assertThat(result.getStatus()).isEqualTo(AdStatus.ACTIVE);
-        assertThat(result.getName()).isEqualTo("Summer Sale");
-        assertThat(result.getAdvertiserId()).isEqualTo(1L);
+        assertThat(result.status()).isEqualTo(AdStatus.ACTIVE);
+        assertThat(result.name()).isEqualTo("Summer Sale");
     }
 
     @Test
@@ -42,16 +42,16 @@ class AdServiceTest {
         Ad ad = Ad.of(1L, "Summer Sale");
         given(adRepository.findById(1L)).willReturn(Optional.of(ad));
 
-        Ad result = adService.changeStatus(1L, AdStatus.PAUSED);
+        AdInfo result = adFacade.changeStatus(1L, AdStatus.PAUSED);
 
-        assertThat(result.getStatus()).isEqualTo(AdStatus.PAUSED);
+        assertThat(result.status()).isEqualTo(AdStatus.PAUSED);
     }
 
     @Test
     void changeStatus_throws_when_ad_not_found() {
         given(adRepository.findById(999L)).willReturn(Optional.empty());
 
-        assertThatThrownBy(() -> adService.changeStatus(999L, AdStatus.PAUSED))
+        assertThatThrownBy(() -> adFacade.changeStatus(999L, AdStatus.PAUSED))
                 .isInstanceOf(AdNotFoundException.class);
     }
 }
