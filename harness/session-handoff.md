@@ -4,58 +4,93 @@
 
 ---
 
-## Last Updated: 2026-06-10 (Session 003)
+## Last Updated: 2026-06-11 (Session 004)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 9개 테스트 PASS)
-  - `AdServiceTest` (3) — Unit
+- `./gradlew test` → BUILD SUCCESSFUL (전체 16개 테스트 PASS)
+  - `AdFacadeTest` (3) — Unit
+  - `BalanceFacadeTest` (7) — Unit
   - `AdJpaRepositoryTest` (1) — Integration (MySQL Testcontainer)
-  - `AdApiE2ETest` (3) — E2E (MySQL + Redis Testcontainer)
+  - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
+  - `AdApiE2ETest` (6) — E2E (MySQL + Redis Testcontainer)
   - `AdClickApplicationTest` (1) — Context load
   - `DependencyDirectionTest` (1) — 의존 방향 단방향 확인
 - `ad-crud` feature: **done**
+- `balance-charge` feature: **done**
 
 ---
 
 ## Changes This Session
 
 - `apps/ad-management/src/main/java/com/adclick/management/`
-  - `domain/Ad.java`, `domain/AdStatus.java`
-  - `infrastructure/AdJpaRepository.java`
-  - `application/AdService.java`, `application/AdNotFoundException.java`
-  - `interfaces/AdController.java`, DTOs (AdRegisterRequest, AdRegisterResponse, AdStatusChangeRequest)
-- `apps/ad-management/build.gradle` — Testcontainers 의존성 추가
-- `apps/ad-api/build.gradle` — `spring-boot-starter-web` 명시 추가, Testcontainers 추가
-- `apps/ad-api/src/test/AdClickApplicationTest.java` — Testcontainers 방식으로 전환
-- `apps/ad-management/src/test/TestApplication.java` — DataJpaTest용 SpringBootConfiguration
-- `apps/ad-management/src/test/.../AdServiceTest.java` — Unit test
-- `apps/ad-management/src/test/.../AdJpaRepositoryTest.java` — Integration test
-- `apps/ad-api/src/test/AdApiE2ETest.java` — E2E test
+  - `domain/TransactionType.java` — CHARGE | DEDUCT | REFUND enum
+  - `domain/AdBalance.java` — ad_balances 엔티티 (adId PK, balance, updatedAt)
+  - `domain/BalanceTransaction.java` — balance_transactions 엔티티
+  - `domain/AdBalanceRepository.java` — 도메인 repository 인터페이스
+  - `domain/BalanceTransactionRepository.java` — 도메인 repository 인터페이스
+  - `infrastructure/AdBalanceJpaRepository.java` — Spring Data JPA
+  - `infrastructure/AdBalanceRepositoryAdapter.java` — Adapter 구현
+  - `infrastructure/BalanceTransactionJpaRepository.java` — Spring Data JPA
+  - `infrastructure/BalanceTransactionRepositoryAdapter.java` — Adapter 구현
+  - `application/BalanceFacade.java` — charge(), getBalance()
+  - `application/info/BalanceInfo.java` — Facade 반환 Info 객체
+  - `interfaces/api/BalanceController.java` — POST charge, GET balance
+  - `interfaces/api/dto/BalanceChargeRequest.java`
+- `apps/ad-management/src/test/...`
+  - `application/BalanceFacadeTest.java` — 7개 유닛 테스트
+  - `infrastructure/AdBalanceJpaRepositoryTest.java` — 2개 통합 테스트
+- `apps/ad-api/src/test/AdApiE2ETest.java` — balance E2E 3개 추가
+
+---
+
+## Package Structure (현재 구현 완료된 구조)
+
+```
+com.adclick.management/
+  interfaces/api/
+    AdController.java
+    BalanceController.java
+    dto/: AdRegisterRequest, AdStatusChangeRequest, BalanceChargeRequest
+  application/
+    AdFacade.java, BalanceFacade.java
+    AdNotFoundException.java
+    info/: AdInfo, BalanceInfo
+  domain/
+    Ad.java, AdStatus.java, AdRepository.java
+    AdBalance.java, AdBalanceRepository.java
+    BalanceTransaction.java, BalanceTransactionRepository.java
+    TransactionType.java
+  infrastructure/
+    AdJpaRepository.java, AdRepositoryAdapter.java
+    AdBalanceJpaRepository.java, AdBalanceRepositoryAdapter.java
+    BalanceTransactionJpaRepository.java, BalanceTransactionRepositoryAdapter.java
+```
 
 ---
 
 ## Still Broken or Unverified
 
 - `bootRun` 미검증 (로컬 DB/Valkey 연결 필요)
-- `balance-charge` ~ `reconciliation-batch` 모든 feature `not_started`
+- `ad-rotation` ~ `reconciliation-batch` 모든 feature `not_started`
 
 ---
 
 ## Next Best Action
 
-**`balance-charge` (priority 2) 구현 시작**
+**`ad-rotation` (priority 3) 구현 시작**
 
 구현 대상:
-- `AdBalance` 엔티티 (`ad_balances` 테이블) — domain
-- `BalanceTransaction` 엔티티 (`balance_transactions` 테이블) — domain
-- `AdBalanceJpaRepository`, `BalanceTransactionJpaRepository` — infrastructure
-- `BalanceService` — application: `charge(adId, amount)` 메서드
-  - 잔액 증가 + balance_transactions INSERT (type=CHARGE)
-  - EXHAUSTED → ACTIVE 자동 전환 (Valkey 큐 재진입은 다음 단계)
-- `BalanceController` — interfaces: POST /api/v1/ads/{adId}/balance/charge, GET /api/v1/ads/{adId}/balance
+- `AdRotationService` — application: `getNextAd()` 메서드
+  - Valkey LPOP으로 다음 광고 ID 가져오기
+  - RPUSH로 큐 끝에 다시 추가 (Round Robin)
+  - 큐 비어있으면 SETNX 분산 락으로 단일 재구성
+  - Valkey 장애 시 DB Fallback (ACTIVE 광고 랜덤)
+- `AdRotationController` — interfaces: GET /api/v1/ads/next
+- `BalanceFacade.charge()` 완성: EXHAUSTED → ACTIVE 전환 시 Valkey 큐에 RPUSH
+- `ValKeyRotationAdapter` — infrastructure: Valkey LPOP/RPUSH/SETNX 래핑
 
 **건드리지 말아야 할 것**
 - 설계 문서, 기존 테스트
@@ -73,6 +108,6 @@
 ./gradlew :apps:ad-api:test
 
 # 특정 테스트 클래스
-./gradlew :apps:ad-management:test --tests "com.adclick.management.application.AdServiceTest"
+./gradlew :apps:ad-management:test --tests "com.adclick.management.application.BalanceFacadeTest"
 ./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest"
 ```
