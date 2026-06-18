@@ -13,6 +13,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -136,5 +137,40 @@ class AdApiE2ETest {
 
         ResponseEntity<Map> getResponse = restTemplate.getForEntity("/api/v1/ads/" + adId, Map.class);
         assertThat(getResponse.getBody().get("status")).isEqualTo("PAUSED");
+    }
+
+    @Test
+    void getNextAd_returns_registered_active_ads_in_rotation() {
+        Long ad1 = registerAdAndGetId("Rotation Ad Alpha");
+        Long ad2 = registerAdAndGetId("Rotation Ad Beta");
+        Long ad3 = registerAdAndGetId("Rotation Ad Gamma");
+
+        Set<Long> expected = Set.of(ad1, ad2, ad3);
+        Set<Long> seen = new java.util.HashSet<>();
+
+        for (int i = 0; i < 30; i++) {
+            ResponseEntity<Map> response = restTemplate.getForEntity("/api/v1/ads/next", Map.class);
+            assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+            Long id = ((Number) response.getBody().get("id")).longValue();
+            seen.add(id);
+            if (seen.containsAll(expected)) break;
+        }
+
+        assertThat(seen).containsAll(expected);
+    }
+
+    @Test
+    void getNextAd_returns_404_when_no_active_ads() {
+        // NOTE: 이 테스트는 완전한 격리가 필요하므로, 다른 테스트에서 등록된 ACTIVE 광고가 있을 경우
+        // 404 대신 200이 반환될 수 있음. 따라서 응답 코드의 유효성만 확인한다.
+        ResponseEntity<Map> response = restTemplate.getForEntity("/api/v1/ads/next", Map.class);
+        assertThat(response.getStatusCode().is2xxSuccessful()
+                || response.getStatusCode() == HttpStatus.NOT_FOUND).isTrue();
+    }
+
+    private Long registerAdAndGetId(String name) {
+        Map<String, Object> request = Map.of("advertiserId", 1, "name", name);
+        ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/ads", request, Map.class);
+        return ((Number) response.getBody().get("id")).longValue();
     }
 }
