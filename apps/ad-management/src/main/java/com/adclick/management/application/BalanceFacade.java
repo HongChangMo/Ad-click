@@ -2,6 +2,7 @@ package com.adclick.management.application;
 
 import com.adclick.management.application.info.BalanceInfo;
 import com.adclick.management.domain.*;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,13 +14,16 @@ public class BalanceFacade {
     private final AdRepository adRepository;
     private final AdBalanceRepository adBalanceRepository;
     private final BalanceTransactionRepository transactionRepository;
+    private final AdRotationQueuePort queuePort;
 
     public BalanceFacade(AdRepository adRepository,
                          AdBalanceRepository adBalanceRepository,
-                         BalanceTransactionRepository transactionRepository) {
+                         BalanceTransactionRepository transactionRepository,
+                         AdRotationQueuePort queuePort) {
         this.adRepository = adRepository;
         this.adBalanceRepository = adBalanceRepository;
         this.transactionRepository = transactionRepository;
+        this.queuePort = queuePort;
     }
 
     @Transactional
@@ -38,6 +42,7 @@ public class BalanceFacade {
         if (ad.getStatus() == AdStatus.EXHAUSTED) {
             ad.changeStatus(AdStatus.ACTIVE);
             adRepository.save(ad);
+            queuePort.offer(adId); // EXHAUSTED → ACTIVE 전환 시 Valkey 큐 재진입
         }
 
         return BalanceInfo.from(adBalance);
