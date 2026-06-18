@@ -3,6 +3,7 @@ package com.adclick.management.application;
 import com.adclick.management.application.info.BalanceInfo;
 import com.adclick.management.domain.*;
 import org.junit.jupiter.api.Test;
+import com.adclick.management.domain.AdRotationQueuePort;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -24,6 +25,7 @@ class BalanceFacadeTest {
     @Mock AdRepository adRepository;
     @Mock AdBalanceRepository adBalanceRepository;
     @Mock BalanceTransactionRepository transactionRepository;
+    @Mock AdRotationQueuePort queuePort;
 
     @InjectMocks BalanceFacade balanceFacade;
 
@@ -68,6 +70,7 @@ class BalanceFacadeTest {
 
         assertThat(ad.getStatus()).isEqualTo(AdStatus.ACTIVE);
         verify(adRepository).save(ad);
+        verify(queuePort).offer(1L);
     }
 
     @Test
@@ -83,6 +86,7 @@ class BalanceFacadeTest {
 
         assertThat(ad.getStatus()).isEqualTo(AdStatus.PAUSED);
         verify(adRepository, never()).save(ad);
+        verify(queuePort, never()).offer(any());
     }
 
     @Test
