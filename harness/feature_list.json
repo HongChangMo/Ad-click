@@ -23,15 +23,15 @@
       "area": "ad-management",
       "title": "광고 잔액 충전 API",
       "user_visible_behavior": "POST /api/v1/ads/{adId}/balance/charge 로 잔액을 충전할 수 있고, EXHAUSTED 상태의 광고는 충전 시 자동으로 ACTIVE로 전환되어 Valkey 큐에 재진입된다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "잔액 충전 후 GET /api/v1/ads/{adId}/balance 로 잔액이 증가했는지 확인한다.",
         "EXHAUSTED 광고에 충전 시 상태가 ACTIVE로 변경되는지 확인한다.",
         "PAUSED 광고에 충전 시 상태가 변경되지 않는지 확인한다.",
         "balance_transactions 테이블에 CHARGE 이력이 기록됐는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "EXHAUSTED → ACTIVE 자동 전환 + Valkey Round Robin Queue 재진입 포함"
+      "evidence": "AdApiE2ETest: charge_balance_increases_amount, charge_exhausted_ad_activates_it, charge_paused_ad_keeps_paused PASS (2026-06-11). BalanceFacadeTest: 7개 유닛 테스트 PASS. AdBalanceJpaRepositoryTest: 2개 통합 테스트 PASS.",
+      "notes": "EXHAUSTED → ACTIVE 자동 전환 구현. Valkey Round Robin Queue 재진입은 ad-rotation(priority 3)에서 처리."
     },
     {
       "id": "ad-rotation",

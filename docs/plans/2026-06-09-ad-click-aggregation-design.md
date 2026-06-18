@@ -111,33 +111,62 @@ LLEN ad:rotation:queue == 0 감지
 
 ## 4. 전체 아키텍처
 
+> 단계별 아키텍처 다이어그램: `docs/diagrams/stage1-architecture.excalidraw` / `stage2-architecture.excalidraw` / `stage3-architecture.excalidraw`
+
+**1단계 (현재 구현)**
+
 ```
 [Client]
    │
    ▼
-[Spring Boot API Server]
+[Spring Boot API Server (EC2 단일)]
+   │   잔액 차감: Pessimistic Lock
+   │   click_events: 직접 MySQL INSERT
    │
-   ├─► [Valkey]
+   ├─► [Valkey (ElastiCache)]
    │     ├─ Round Robin Queue       (활성 광고 ID 순환)
-   │     ├─ 어뷰징 방어 TTL 키      (IP/익명ID + 광고ID)
-   │     └─ (2단계~) 잔액 캐시 + Lua Script 원자적 차감
+   │     └─ 어뷰징 방어 TTL 키      (IP/익명ID + 광고ID)
    │
-   └─► [MySQL]
+   └─► [MySQL (RDS)]
          ├─ ads                     (광고 기본 정보)
-         ├─ ad_balances             (광고별 잔액, Lock 대상)
+         ├─ ad_balances             (광고별 잔액, Pessimistic Lock 대상)
          ├─ click_events            (클릭 원본 이벤트)
          └─ balance_transactions    (충전/차감 전체 이력)
 ```
 
-**2단계 이후 Kafka 추가 시**
+**2단계 이후 (Nginx LB + Kafka 추가)**
 
 ```
-[Spring Boot API Server]
+[Client]
    │
-   ├─► [Valkey]          (동일)
-   ├─► [MySQL / Outbox]  (잔액 차감 + Outbox 이벤트 기록)
-   └─► [Kafka]
+   ▼
+[Nginx Load Balancer]
+   │
+   ├─► [API Server 1]  [API Server 2]   ← Circuit Breaker (Resilience4j)
+   │        │
+   │   잔액 차감: Valkey Lua Script (원자적)
+   │   Fallback: DB Random 선택
+   │
+   ├─► [Valkey]          (+ 잔액 캐시 + Lua Script)
+   ├─► [MySQL Primary]   (+ Read Replica, + Outbox 테이블)
+   │         └─► [Read Replica]
+   └─► [Kafka MSK]
          └─► [Consumer]  (click_events INSERT, 광고 상태 업데이트, 통계 집계)
+```
+
+**3단계 이후 (Auto Scaling + HA)**
+
+```
+[Nginx LB (Auto Scaling)]
+   │
+   └─► [Auto Scaling Group — API Server × N]
+             │   Circuit Breaker + Caffeine 로컬 캐시 Fallback
+             │
+   ├─► [Valkey HA (Multi-AZ)]     ← Replica 자동 승격
+   ├─► [MySQL Multi-AZ]           ← Primary + Standby, 자동 Failover
+   │         └─► [Read Replicas × N]
+   └─► [Kafka MSK (Multi-AZ)]
+         └─► [Consumers (Auto Scaled)]
 ```
 
 ---
@@ -300,6 +329,65 @@ Caffeine 로컬 캐시는 광고 **목록**은 서버 간 동일하게 유지할
 | 1단계 | Valkey Round Robin | DB 조회 → ACTIVE 광고 중 랜덤 선택 |
 | 2단계 | Valkey Round Robin | Caffeine 로컬 캐시(목록만) + 랜덤 선택 |
 | 3단계 | Valkey HA (Multi-AZ) | Replica 자동 승격 + 전환 중 2단계 Fallback |
+
+#### Circuit Breaker 동작 방식 및 Fallback 기본값 (2단계 이후)
+
+Circuit Breaker가 없으면 Valkey 장애 시 매 요청마다 연결 타임아웃까지 기다린 후 Fallback으로 전환됩니다.  
+Valkey 타임아웃이 2초라면 초당 수백 요청이 모두 2초씩 묶여 스레드 풀이 고갈됩니다.
+
+Circuit Breaker(Resilience4j)는 연속 N번 실패를 감지하면 OPEN 상태로 전환하고,  
+이후 모든 Valkey 호출을 건너뛰고 즉시 Fallback 메서드를 실행합니다.
+
+```
+[정상]  요청 → Valkey 호출 → 응답
+[장애]  요청 1~N → 실패 감지 → Circuit OPEN
+        요청 N+1 이후 → Valkey 호출 생략 → 즉시 Fallback 실행
+[복구]  일정 시간 후 HALF-OPEN → Valkey 회복 확인 → Circuit CLOSED
+```
+
+**컴포넌트별 Fallback 기본값**
+
+| 컴포넌트 | 메서드 | Fallback 반환값 | 손실 |
+|---------|--------|----------------|------|
+| `AbuseGuardAdapter.isAbuser()` | Valkey TTL 키 조회 | `false` (어뷰저 아님) | 중복 클릭 방어 일시 중단 |
+| `ValKeyRotationAdapter.getNextAdId()` | Valkey LPOP | DB에서 ACTIVE 광고 랜덤 조회 | Round Robin → 랜덤 노출 |
+| `BalanceAdapter.deductBalance()` (2단계) | Valkey Lua Script | DB Pessimistic Lock으로 전환 | 처리 속도 저하 |
+
+```java
+// 어뷰징 체크 — Fail Open
+@CircuitBreaker(name = "valkey", fallbackMethod = "isAbuserFallback")
+public boolean isAbuser(String ip, Long adId) {
+    // Valkey TTL 키 조회
+}
+
+private boolean isAbuserFallback(String ip, Long adId, Exception e) {
+    return false; // "어뷰저 아님"으로 처리 → 클릭 허용
+}
+
+// Round Robin — DB 랜덤 조회
+@CircuitBreaker(name = "valkey", fallbackMethod = "getNextAdFallback")
+public Long getNextAdId() {
+    // Valkey LPOP
+}
+
+private Long getNextAdFallback(Exception e) {
+    return adRepository.findRandomActiveAdId()
+            .orElseThrow(NoActiveAdException::new);
+}
+
+// 잔액 차감 (2단계) — DB Pessimistic Lock
+@CircuitBreaker(name = "valkey", fallbackMethod = "deductBalanceFallback")
+public boolean deductBalance(Long adId) {
+    // Valkey Lua Script
+}
+
+private boolean deductBalanceFallback(Long adId, Exception e) {
+    return deductWithDbLock(adId); // SELECT ... FOR UPDATE
+}
+```
+
+세 경우 모두 **"서비스 가용성"을 "정확성"보다 우선**합니다.  
+Valkey가 죽어도 광고 클릭은 계속 처리되며, 어뷰징 방어와 균등 노출은 장애 구간에만 일시적으로 품질이 낮아집니다.
 
 ---
 
@@ -466,14 +554,23 @@ POST /api/v1/ads/{adId}/clicks
 
 ## 9. 단계별 확장 전략
 
+> 아키텍처 다이어그램
+> - 1단계: `docs/diagrams/stage1-architecture.excalidraw`
+> - 2단계: `docs/diagrams/stage2-architecture.excalidraw`
+> - 3단계: `docs/diagrams/stage3-architecture.excalidraw`
+
 | 항목 | 1단계 (~1,000 TPS) | 2단계 (~5,000 TPS) | 3단계 (10,000+ TPS) |
 |------|--------------------|--------------------|----------------------|
+| API 서버 | EC2 단일 | EC2 × 2 + Nginx LB | Auto Scaling Group + Nginx LB |
 | 잔액 차감 동시성 | Pessimistic Lock | Valkey Lua Script | Valkey Lua Script |
+| Valkey 구성 | 단일 노드 | 단일 노드 (+ Lua Script, 잔액 캐시) | HA Multi-AZ (Replica 자동 승격) |
+| Valkey Fallback | DB 조회 → ACTIVE 랜덤 | Circuit Breaker + DB Random | Circuit Breaker + Caffeine 로컬 캐시 |
 | 클릭 이벤트 기록 | 직접 MySQL INSERT | Outbox → Kafka Consumer | Outbox → Kafka Consumer |
 | 광고 상태 업데이트 | 동기 처리 | Kafka Consumer | Kafka Consumer |
-| DB 구성 | MySQL 단일 | MySQL + Read Replica | MySQL + Read Replica |
-| 인프라 | EC2 + RDS + ElastiCache(Valkey) | + Kafka(AWS MSK) | + Auto Scaling Group |
-| 로컬 개발 환경 | LocalStack (ElastiCache Valkey) | + LocalStack Kafka | 동일 |
+| DB 구성 | MySQL 단일 | MySQL Primary + Read Replica | MySQL Multi-AZ + Read Replicas × N |
+| Consumer | 없음 | Kafka Consumer (고정) | Consumers (Auto Scaled) |
+| 인프라 | EC2 + RDS + ElastiCache(Valkey) | + Nginx + Read Replica + Kafka(MSK) | + Auto Scaling + Multi-AZ + Kafka HA |
+| 로컬 개발 환경 | Testcontainers (MySQL + Valkey) | + Testcontainers Kafka | 동일 |
 
 **각 전환 시점의 트리거**
 
@@ -492,48 +589,60 @@ POST /api/v1/ads/{adId}/clicks
 
 ### 전체 멀티모듈 구조
 
+> **DDD 4계층 패키지 구조 적용** (interfaces → application → domain ← infrastructure)
+> - `Facade`: 유스케이스 조율, 트랜잭션 경계
+> - `Info`: Facade 반환 객체 (domain entity 직접 노출 금지)
+> - `RepositoryAdapter`: domain Repository 인터페이스를 JPA로 구현 (Adapter 패턴)
+
 ```
 adclick/ (root)
 ├── apps/
 │   │
-│   ├── ad-api/                        ← Spring Boot 실행 모듈
+│   ├── ad-api/                        ← Spring Boot 실행 모듈 (@SpringBootApplication)
 │   │   └── src/main/java/
 │   │       ├── AdClickApplication.java
 │   │       └── config/
-│   │             ValKeyConfig.java, Bucket4jConfig.java, JpaConfig.java
+│   │             ValKeyConfig.java, JpaConfig.java
 │   │
 │   ├── ad-management/                 ← 광고 등록/관리 도메인
 │   │   └── src/main/java/
-│   │       ├── interfaces/
-│   │       │     AdController.java          (POST /ads, PATCH /ads/{id}/status)
+│   │       ├── interfaces/api/
+│   │       │     AdController.java          (POST /ads, PATCH /ads/{id}/status, GET /ads/{id})
 │   │       │     BalanceController.java      (POST /ads/{id}/balance/charge, GET /ads/{id}/balance)
-│   │       │     AdRotationController.java   (GET /ads/next)
+│   │       │     AdRotationController.java   (GET /ads/next)          ← 미구현
+│   │       │   dto/
+│   │       │     AdRegisterRequest.java, AdStatusChangeRequest.java
+│   │       │     BalanceChargeRequest.java
 │   │       ├── application/
-│   │       │     AdService.java
-│   │       │     BalanceService.java         ← SELECT FOR UPDATE, 차감/충전
-│   │       │     AdRotationService.java      ← Valkey Round Robin Queue 관리
+│   │       │     AdFacade.java               ← 광고 등록/상태 변경
+│   │       │     BalanceFacade.java          ← 잔액 충전, EXHAUSTED→ACTIVE 전환
+│   │       │     AdRotationFacade.java       ← Valkey Round Robin Queue 관리  ← 미구현
+│   │       │     AdNotFoundException.java
+│   │       │   info/
+│   │       │     AdInfo.java, BalanceInfo.java
 │   │       ├── domain/
-│   │       │     Ad.java, AdStatus.java
-│   │       │     AdBalance.java
-│   │       │     BalanceTransaction.java
+│   │       │     Ad.java, AdStatus.java, AdRepository.java
+│   │       │     AdBalance.java, AdBalanceRepository.java
+│   │       │     BalanceTransaction.java, BalanceTransactionRepository.java
+│   │       │     TransactionType.java
 │   │       └── infrastructure/
-│   │             AdJpaRepository.java
-│   │             AdBalanceJpaRepository.java
-│   │             BalanceTransactionJpaRepository.java
-│   │             ValKeyRotationAdapter.java   ← LPOP/RPUSH, SETNX 재구성
+│   │             AdJpaRepository.java, AdRepositoryAdapter.java
+│   │             AdBalanceJpaRepository.java, AdBalanceRepositoryAdapter.java
+│   │             BalanceTransactionJpaRepository.java, BalanceTransactionRepositoryAdapter.java
+│   │             ValKeyRotationAdapter.java   ← LPOP/RPUSH, SETNX 재구성  ← 미구현
 │   │
 │   └── ad-click/                      ← 클릭 집계 도메인
 │       └── src/main/java/
-│           ├── interfaces/
+│           ├── interfaces/api/
 │           │     ClickController.java         (POST /ads/{id}/clicks, GET /ads/{id}/clicks/stats)
 │           ├── application/
-│           │     ClickFacadeService.java      ← 어뷰징 체크 → 잔액 차감 → 이벤트 기록 조율
+│           │     ClickFacade.java             ← 어뷰징 체크 → 잔액 차감 → 이벤트 기록 조율
 │           │     ClickEventService.java       ← 1단계: 직접 INSERT / 2단계: Kafka publish 교체
 │           ├── domain/
 │           │     ClickEvent.java
 │           │     InvalidReason.java           ← DUPLICATE_IP | DUPLICATE_ANON | RATE_LIMIT
 │           └── infrastructure/
-│                 ClickJpaRepository.java
+│                 ClickJpaRepository.java, ClickRepositoryAdapter.java
 │                 AbuseGuardAdapter.java        ← Bucket4j + Valkey TTL
 │                 OutboxRepository.java         ← 1단계: 미사용 / 2단계: 활성화
 │
@@ -545,7 +654,7 @@ adclick/ (root)
 ```
 ad-api ──► ad-management   (빈 조립, 공통 설정 적용)
 ad-api ──► ad-click        (빈 조립, 공통 설정 적용)
-ad-click ──► ad-management (BalanceService 호출 — 잔액 차감)
+ad-click ──► ad-management (BalanceFacade 호출 — 잔액 차감)
 
 의존 방향은 단방향 유지:
 ad-management 은 ad-click 을 알지 못함
@@ -555,10 +664,16 @@ ad-management 은 ad-click 을 알지 못함
 
 | 레이어 | 역할 | 의존 가능 대상 |
 |--------|------|----------------|
-| `interfaces` | Controller, Request/Response DTO | `application` |
-| `application` | 유스케이스 조율, 트랜잭션 경계 | `domain`, `infrastructure` 인터페이스 |
-| `domain` | Entity, Value Object, Repository 인터페이스 | 없음 (순수 Java) |
-| `infrastructure` | JPA 구현체, Valkey, 외부 연동 | `domain` |
+| `interfaces/api/` | Controller, Request DTO | `application` |
+| `application/` | Facade: 유스케이스 조율, 트랜잭션 경계 | `domain` Repository 인터페이스만 |
+| `application/info/` | Facade 반환 객체 — domain entity 외부 노출 금지 | `domain` |
+| `domain/` | Entity, Enum, Repository 인터페이스 | 없음 (순수 Java, JPA 어노테이션 제외) |
+| `infrastructure/` | JpaRepository, RepositoryAdapter, Valkey 연동 | `domain` |
+
+**핵심 의존 규칙**
+- `application/Facade`는 `domain/Repository` 인터페이스에만 의존 → JPA 구현체 직접 주입 금지
+- `infrastructure/RepositoryAdapter`가 `domain/Repository`를 구현 → Spring이 Facade에 주입
+- `interfaces/api/`의 Controller는 `Info` 객체를 그대로 응답으로 사용 (별도 변환 불필요)
 
 ---
 

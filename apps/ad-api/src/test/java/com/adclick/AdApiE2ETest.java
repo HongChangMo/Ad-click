@@ -85,4 +85,56 @@ class AdApiE2ETest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
+
+    @Test
+    void charge_balance_increases_amount() {
+        Map<String, Object> registerRequest = Map.of("advertiserId", 1, "name", "Balance Test Ad");
+        ResponseEntity<Map> registerResponse = restTemplate.postForEntity("/api/v1/ads", registerRequest, Map.class);
+        Long adId = ((Number) registerResponse.getBody().get("id")).longValue();
+
+        Map<String, Object> chargeRequest = Map.of("amount", 5000);
+        ResponseEntity<Map> chargeResponse = restTemplate.postForEntity(
+                "/api/v1/ads/" + adId + "/balance/charge", chargeRequest, Map.class);
+
+        assertThat(chargeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Number) chargeResponse.getBody().get("balance")).intValue()).isEqualTo(5000);
+
+        ResponseEntity<Map> getResponse = restTemplate.getForEntity(
+                "/api/v1/ads/" + adId + "/balance", Map.class);
+        assertThat(((Number) getResponse.getBody().get("balance")).intValue()).isEqualTo(5000);
+    }
+
+    @Test
+    void charge_exhausted_ad_activates_it() {
+        Map<String, Object> registerRequest = Map.of("advertiserId", 1, "name", "Exhausted Ad");
+        ResponseEntity<Map> registerResponse = restTemplate.postForEntity("/api/v1/ads", registerRequest, Map.class);
+        Long adId = ((Number) registerResponse.getBody().get("id")).longValue();
+
+        Map<String, Object> exhaustRequest = Map.of("status", "EXHAUSTED");
+        restTemplate.exchange("/api/v1/ads/" + adId + "/status",
+                HttpMethod.PATCH, new HttpEntity<>(exhaustRequest), Void.class);
+
+        Map<String, Object> chargeRequest = Map.of("amount", 1000);
+        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge", chargeRequest, Map.class);
+
+        ResponseEntity<Map> getResponse = restTemplate.getForEntity("/api/v1/ads/" + adId, Map.class);
+        assertThat(getResponse.getBody().get("status")).isEqualTo("ACTIVE");
+    }
+
+    @Test
+    void charge_paused_ad_keeps_paused() {
+        Map<String, Object> registerRequest = Map.of("advertiserId", 1, "name", "Paused Ad");
+        ResponseEntity<Map> registerResponse = restTemplate.postForEntity("/api/v1/ads", registerRequest, Map.class);
+        Long adId = ((Number) registerResponse.getBody().get("id")).longValue();
+
+        Map<String, Object> pauseRequest = Map.of("status", "PAUSED");
+        restTemplate.exchange("/api/v1/ads/" + adId + "/status",
+                HttpMethod.PATCH, new HttpEntity<>(pauseRequest), Void.class);
+
+        Map<String, Object> chargeRequest = Map.of("amount", 1000);
+        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge", chargeRequest, Map.class);
+
+        ResponseEntity<Map> getResponse = restTemplate.getForEntity("/api/v1/ads/" + adId, Map.class);
+        assertThat(getResponse.getBody().get("status")).isEqualTo("PAUSED");
+    }
 }
