@@ -7,12 +7,48 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `balance-charge` (priority 2) — 광고 잔액 충전 API |
-| Current blocker | 없음 — ad-crud 완성 |
+| Highest priority unfinished feature | `ad-rotation` (priority 3) — Round Robin 광고 균등 노출 |
+| Current blocker | 없음 — ad-crud, balance-charge 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 005 — 2026-06-16
+
+**Goal**
+Circuit Breaker 설계 이해 및 설계 문서 보완
+
+**Completed**
+- Circuit Breaker(Resilience4j)가 이 서비스에서 하는 역할 정리
+  - Valkey 장애 시 타임아웃 낭비 없이 즉시 Fallback 전환
+  - CLOSED → OPEN → HALF-OPEN → CLOSED 상태 전환
+- Fallback 기본값 설계 확정
+  - `isAbuser()` → `false` (Fail Open)
+  - `getNextAdId()` → DB ACTIVE 광고 랜덤 조회
+  - `deductBalance()` → DB Pessimistic Lock
+- `docs/plans/2026-06-09-ad-click-aggregation-design.md` Section 5.5에 Circuit Breaker 서브섹션 추가
+  - 컴포넌트별 Fallback 반환값 표
+  - `@CircuitBreaker` + `fallbackMethod` 코드 예시
+  - 설계 원칙: 가용성 > 정확성 (장애 구간에만 허용)
+
+**Verification run**
+코드 변경 없음 — 테스트 재실행 불필요
+
+**Evidence recorded**
+없음 (설계 문서 변경)
+
+**Known issues / Lessons**
+없음
+
+**Next best action**
+`ad-rotation` (priority 3) 구현:
+- `ValKeyRotationAdapter` — LPOP/RPUSH/SETNX 래핑
+- `AdRotationFacade` — `getNextAd()`: LPOP → Round Robin, 큐 빔 감지 시 SETNX 재구성
+- `AdRotationController` — GET /api/v1/ads/next
+- `BalanceFacade.charge()` 완성: EXHAUSTED → ACTIVE 전환 시 Valkey 큐에 RPUSH
 
 ---
 

@@ -330,6 +330,65 @@ Caffeine 로컬 캐시는 광고 **목록**은 서버 간 동일하게 유지할
 | 2단계 | Valkey Round Robin | Caffeine 로컬 캐시(목록만) + 랜덤 선택 |
 | 3단계 | Valkey HA (Multi-AZ) | Replica 자동 승격 + 전환 중 2단계 Fallback |
 
+#### Circuit Breaker 동작 방식 및 Fallback 기본값 (2단계 이후)
+
+Circuit Breaker가 없으면 Valkey 장애 시 매 요청마다 연결 타임아웃까지 기다린 후 Fallback으로 전환됩니다.  
+Valkey 타임아웃이 2초라면 초당 수백 요청이 모두 2초씩 묶여 스레드 풀이 고갈됩니다.
+
+Circuit Breaker(Resilience4j)는 연속 N번 실패를 감지하면 OPEN 상태로 전환하고,  
+이후 모든 Valkey 호출을 건너뛰고 즉시 Fallback 메서드를 실행합니다.
+
+```
+[정상]  요청 → Valkey 호출 → 응답
+[장애]  요청 1~N → 실패 감지 → Circuit OPEN
+        요청 N+1 이후 → Valkey 호출 생략 → 즉시 Fallback 실행
+[복구]  일정 시간 후 HALF-OPEN → Valkey 회복 확인 → Circuit CLOSED
+```
+
+**컴포넌트별 Fallback 기본값**
+
+| 컴포넌트 | 메서드 | Fallback 반환값 | 손실 |
+|---------|--------|----------------|------|
+| `AbuseGuardAdapter.isAbuser()` | Valkey TTL 키 조회 | `false` (어뷰저 아님) | 중복 클릭 방어 일시 중단 |
+| `ValKeyRotationAdapter.getNextAdId()` | Valkey LPOP | DB에서 ACTIVE 광고 랜덤 조회 | Round Robin → 랜덤 노출 |
+| `BalanceAdapter.deductBalance()` (2단계) | Valkey Lua Script | DB Pessimistic Lock으로 전환 | 처리 속도 저하 |
+
+```java
+// 어뷰징 체크 — Fail Open
+@CircuitBreaker(name = "valkey", fallbackMethod = "isAbuserFallback")
+public boolean isAbuser(String ip, Long adId) {
+    // Valkey TTL 키 조회
+}
+
+private boolean isAbuserFallback(String ip, Long adId, Exception e) {
+    return false; // "어뷰저 아님"으로 처리 → 클릭 허용
+}
+
+// Round Robin — DB 랜덤 조회
+@CircuitBreaker(name = "valkey", fallbackMethod = "getNextAdFallback")
+public Long getNextAdId() {
+    // Valkey LPOP
+}
+
+private Long getNextAdFallback(Exception e) {
+    return adRepository.findRandomActiveAdId()
+            .orElseThrow(NoActiveAdException::new);
+}
+
+// 잔액 차감 (2단계) — DB Pessimistic Lock
+@CircuitBreaker(name = "valkey", fallbackMethod = "deductBalanceFallback")
+public boolean deductBalance(Long adId) {
+    // Valkey Lua Script
+}
+
+private boolean deductBalanceFallback(Long adId, Exception e) {
+    return deductWithDbLock(adId); // SELECT ... FOR UPDATE
+}
+```
+
+세 경우 모두 **"서비스 가용성"을 "정확성"보다 우선**합니다.  
+Valkey가 죽어도 광고 클릭은 계속 처리되며, 어뷰징 방어와 균등 노출은 장애 구간에만 일시적으로 품질이 낮아집니다.
+
 ---
 
 ### 5.6 광고주 잔액 충전 — 단순 충전 API + 자동 재활성화

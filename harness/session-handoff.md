@@ -4,7 +4,7 @@
 
 ---
 
-## Last Updated: 2026-06-11 (Session 004)
+## Last Updated: 2026-06-16 (Session 005)
 
 ---
 
@@ -25,24 +25,13 @@
 
 ## Changes This Session
 
-- `apps/ad-management/src/main/java/com/adclick/management/`
-  - `domain/TransactionType.java` — CHARGE | DEDUCT | REFUND enum
-  - `domain/AdBalance.java` — ad_balances 엔티티 (adId PK, balance, updatedAt)
-  - `domain/BalanceTransaction.java` — balance_transactions 엔티티
-  - `domain/AdBalanceRepository.java` — 도메인 repository 인터페이스
-  - `domain/BalanceTransactionRepository.java` — 도메인 repository 인터페이스
-  - `infrastructure/AdBalanceJpaRepository.java` — Spring Data JPA
-  - `infrastructure/AdBalanceRepositoryAdapter.java` — Adapter 구현
-  - `infrastructure/BalanceTransactionJpaRepository.java` — Spring Data JPA
-  - `infrastructure/BalanceTransactionRepositoryAdapter.java` — Adapter 구현
-  - `application/BalanceFacade.java` — charge(), getBalance()
-  - `application/info/BalanceInfo.java` — Facade 반환 Info 객체
-  - `interfaces/api/BalanceController.java` — POST charge, GET balance
-  - `interfaces/api/dto/BalanceChargeRequest.java`
-- `apps/ad-management/src/test/...`
-  - `application/BalanceFacadeTest.java` — 7개 유닛 테스트
-  - `infrastructure/AdBalanceJpaRepositoryTest.java` — 2개 통합 테스트
-- `apps/ad-api/src/test/AdApiE2ETest.java` — balance E2E 3개 추가
+코드 변경 없음 — 설계 문서 보완만 진행.
+
+- `docs/plans/2026-06-09-ad-click-aggregation-design.md`
+  - Section 5.5에 `#### Circuit Breaker 동작 방식 및 Fallback 기본값 (2단계 이후)` 서브섹션 추가
+  - 컴포넌트별 Fallback 반환값 표: `isAbuser()` → `false`, `getNextAdId()` → DB 랜덤, `deductBalance()` → DB Pessimistic Lock
+  - Circuit Breaker 상태 전환 흐름 (CLOSED → OPEN → HALF-OPEN → CLOSED) 다이어그램
+  - Resilience4j `@CircuitBreaker` + `fallbackMethod` 코드 예시
 
 ---
 
