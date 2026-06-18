@@ -4,6 +4,7 @@ import com.adclick.management.application.info.AdInfo;
 import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdRotationQueuePort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -18,6 +19,7 @@ public class AdRotationFacade {
         this.queuePort = queuePort;
     }
 
+    @Transactional(readOnly = true)
     public AdInfo getNextAd() {
         try {
             return nextAdFromQueue()

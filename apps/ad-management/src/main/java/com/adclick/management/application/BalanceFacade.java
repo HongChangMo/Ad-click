@@ -2,7 +2,7 @@ package com.adclick.management.application;
 
 import com.adclick.management.application.info.BalanceInfo;
 import com.adclick.management.domain.*;
-import com.adclick.management.domain.AdRotationQueuePort;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
