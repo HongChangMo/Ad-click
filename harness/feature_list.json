@@ -39,14 +39,14 @@
       "area": "ad-management",
       "title": "Round Robin 광고 균등 노출",
       "user_visible_behavior": "GET /api/v1/ads/next 를 반복 호출하면 활성 광고가 순서대로 균등하게 반환된다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "광고 3개 등록 후 GET /api/v1/ads/next 를 9회 호출했을 때 각 광고가 정확히 3번씩 반환된다.",
         "Valkey 재시작 후 큐가 비어있을 때 SETNX 락으로 단일 재구성이 이루어지는지 확인한다.",
         "Valkey 장애 시 DB Fallback으로 ACTIVE 광고가 랜덤하게 반환되는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "Valkey LPOP/RPUSH 기반. 재시작 시 SETNX 분산 락으로 단일 재구성"
+      "evidence": "AdRotationFacadeTest: 5개 유닛 테스트 PASS (round robin, queue rebuild, lock-loss fallback, valkey fallback, no-active-ad). ValKeyRotationAdapterTest: 4개 통합 테스트 PASS (Redis:7.2 Testcontainer). AdApiE2ETest: Round Robin E2E 2개 추가. 전체 32개 테스트 PASS. (2026-06-18)",
+      "notes": "Valkey LPOP/RPUSH 기반. 재시작 시 SETNX 분산 락으로 단일 재구성. 락 획득 실패 시 DB random fallback."
     },
     {
       "id": "click-record",
