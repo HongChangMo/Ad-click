@@ -51,6 +51,7 @@ public class ClickController {
         Cookie cookie = new Cookie("anonymous_id", newId);
         cookie.setMaxAge(60 * 60 * 24 * 365);
         cookie.setPath("/");
+        cookie.setHttpOnly(true);
         response.addCookie(cookie);
         return newId;
     }
