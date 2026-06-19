@@ -46,8 +46,8 @@
         "Valkey 재시작 후 큐가 비어있을 때 SETNX 락으로 단일 재구성이 이루어지는지 확인한다.",
         "Valkey 장애 시 DB Fallback으로 ACTIVE 광고가 랜덤하게 반환되는지 확인한다."
       ],
-      "evidence": "Round Robin 로직 + VIEW 과금(10원) 완료 (2026-06-18)",
-      "notes": "요구사항 변경 (2026-06-18): GET /next 호출 시 10원 차감 추가. BalanceFacade.deduct(adId, 10, VIEW) 호출 필요. AdRotationFacade.getNextAd()를 @Transactional(readOnly=false)로 변경하고 BalanceFacade 주입 필요."
+      "evidence": "AdRotationFacadeTest: 6개 유닛 PASS (Round Robin + VIEW 과금 포함). ValKeyRotationAdapterTest: 4개 통합 PASS. AdApiE2ETest: Round Robin E2E 2개 + VIEW 과금 E2E 1개 PASS. 전체 테스트 PASS. (2026-06-19)",
+      "notes": "BalanceFacade.deduct(adId, 10, VIEW) 호출로 조회 과금 처리. AdRotationFacade.getNextAd()는 @Transactional(readOnly=false). TransactionType: CHARGE | VIEW | CLICK | REFUND."
     },
     {
       "id": "click-record",
