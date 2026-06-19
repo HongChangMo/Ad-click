@@ -19,6 +19,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
@@ -87,6 +88,7 @@ class AdRotationFacadeTest {
         assertThat(result.id()).isEqualTo(1L);
         verify(adRepository).findRandomActive(); // DB fallback으로 처리
         verify(adRepository, never()).findAllActiveIds(); // 재구성 시도 안 함
+        verify(balanceFacade).deduct(anyLong(), eq(BigDecimal.TEN), eq(TransactionType.VIEW));
     }
 
     @Test
@@ -104,6 +106,7 @@ class AdRotationFacadeTest {
         assertThat(result.id()).isEqualTo(1L);
         verify(adRepository).findRandomActive();
         verify(queuePort, never()).offer(anyLong()); // Valkey 장애 시 RPUSH 호출 안 함
+        verify(balanceFacade).deduct(anyLong(), eq(BigDecimal.TEN), eq(TransactionType.VIEW));
     }
 
     @Test

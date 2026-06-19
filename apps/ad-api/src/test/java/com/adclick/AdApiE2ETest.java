@@ -7,7 +7,6 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -146,6 +145,11 @@ class AdApiE2ETest {
         Long ad2 = registerAdAndGetId("Rotation Ad Beta");
         Long ad3 = registerAdAndGetId("Rotation Ad Gamma");
 
+        // /next 호출마다 10원씩 차감되므로 30회 호출 기준 광고당 최소 300원 충전
+        chargeBalance(ad1, 500);
+        chargeBalance(ad2, 500);
+        chargeBalance(ad3, 500);
+
         Set<Long> expected = Set.of(ad1, ad2, ad3);
         Set<Long> seen = new java.util.HashSet<>();
 
@@ -170,40 +174,49 @@ class AdApiE2ETest {
     }
 
     @Test
-    void getNextAd_deducts_10_from_balance_on_view() {
+    void getNextAd_deducts_10_from_balance_on_view() throws Exception {
+        // 테스트 대상 광고 등록 후 500원 충전
         Long adId = registerAdAndGetId("View Charge Test Ad");
-        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge",
-                Map.of("amount", 100), Map.class);
+        chargeBalance(adId, 500);
 
-        // Valkey 큐를 비워 다음 /next 호출 시 전체 ACTIVE 광고(우리 광고 포함)를 포함하는 큐 재구성을 유도
-        try {
-            redis.execInContainer("redis-cli", "DEL", "ad:rotation:queue");
-        } catch (Exception ignored) {
-            // 큐 초기화 실패 시에도 테스트 계속 진행
-        }
+        // Valkey 큐를 비워서 다음 /next 호출 시 전체 ACTIVE 광고를 포함하는 큐 재구성을 유도
+        // 큐 재구성 시 우리 광고가 반드시 포함되므로, 이후 충분한 횟수 호출하면 반드시 반환됨
+        redis.execInContainer("redis-cli", "DEL", "ad:rotation:queue");
 
-        // GET /next를 반복 호출하여 우리 광고가 반환될 때까지 대기 (최대 200회)
-        // 큐 재구성 후 모든 ACTIVE 광고가 포함되므로, 이 광고도 반드시 선택됨
-        for (int i = 0; i < 200; i++) {
+        // /next를 최대 100회 호출 — 큐 재구성 후 우리 광고가 반드시 로테이션에 포함됨
+        boolean seen = false;
+        for (int i = 0; i < 100; i++) {
             ResponseEntity<Map> next = restTemplate.getForEntity("/api/v1/ads/next", Map.class);
             if (next.getStatusCode().is2xxSuccessful() && next.getBody() != null) {
                 Long returnedId = ((Number) next.getBody().get("id")).longValue();
                 if (returnedId.equals(adId)) {
+                    seen = true;
                     break;
                 }
             }
         }
 
-        // 우리 광고가 최소 1회 VIEW 과금됐으므로 잔액이 초기값(100)보다 감소했는지 확인
+        assertThat(seen).as("View Charge Test Ad must appear in /next within 100 calls after queue rebuild").isTrue();
+
+        // 우리 광고가 최소 1회 VIEW 과금됐으므로:
+        // - 잔액은 반드시 500 미만
+        // - 잔액은 0 이상
+        // - (500 - 잔액)은 10의 배수
         ResponseEntity<Map> balanceResponse = restTemplate.getForEntity(
                 "/api/v1/ads/" + adId + "/balance", Map.class);
         int finalBalance = ((Number) balanceResponse.getBody().get("balance")).intValue();
-        assertThat(finalBalance).isLessThan(100);
+        assertThat(finalBalance).isLessThan(500).isGreaterThanOrEqualTo(0);
+        assertThat((500 - finalBalance) % 10).isEqualTo(0);
     }
 
     private Long registerAdAndGetId(String name) {
         Map<String, Object> request = Map.of("advertiserId", 1, "name", name);
         ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/ads", request, Map.class);
         return ((Number) response.getBody().get("id")).longValue();
+    }
+
+    private void chargeBalance(Long adId, int amount) {
+        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge",
+                Map.of("amount", amount), Map.class);
     }
 }

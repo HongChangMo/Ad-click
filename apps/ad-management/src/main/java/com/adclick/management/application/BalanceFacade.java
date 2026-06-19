@@ -52,9 +52,20 @@ public class BalanceFacade {
     public void deduct(Long adId, BigDecimal amount, TransactionType type) {
         AdBalance balance = adBalanceRepository.findByAdId(adId)
                 .orElseGet(() -> AdBalance.of(adId));
-        balance.subtract(amount);
+        BigDecimal actual = balance.getBalance().min(amount);
+        balance.subtract(actual);
         adBalanceRepository.save(balance);
-        transactionRepository.save(BalanceTransaction.of(adId, amount, type));
+        if (actual.compareTo(BigDecimal.ZERO) > 0) {
+            transactionRepository.save(BalanceTransaction.of(adId, actual, type));
+        }
+        if (balance.getBalance().compareTo(BigDecimal.ZERO) == 0) {
+            adRepository.findById(adId).ifPresent(ad -> {
+                if (ad.getStatus() == AdStatus.ACTIVE) {
+                    ad.changeStatus(AdStatus.EXHAUSTED);
+                    adRepository.save(ad);
+                }
+            });
+        }
     }
 
     @Transactional(readOnly = true)
