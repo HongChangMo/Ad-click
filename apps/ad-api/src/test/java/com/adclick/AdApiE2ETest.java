@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -12,6 +13,7 @@ import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -209,10 +211,59 @@ class AdApiE2ETest {
         assertThat((500 - finalBalance) % 10).isEqualTo(0);
     }
 
+    @Test
+    void click_deducts_50_from_balance_and_records_event() {
+        Long adId = registerAdAndCharge("E2E Click 50won Test", 200);
+
+        ResponseEntity<Map> clickResponse = restTemplate.postForEntity(
+                "/api/v1/ads/" + adId + "/clicks", null, Map.class);
+
+        assertThat(clickResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(clickResponse.getBody().get("adId")).isEqualTo(adId.intValue());
+        assertThat(clickResponse.getBody().get("isValid")).isEqualTo(true);
+
+        ResponseEntity<Map> balanceResponse = restTemplate.getForEntity(
+                "/api/v1/ads/" + adId + "/balance", Map.class);
+        assertThat(((Number) balanceResponse.getBody().get("balance")).intValue()).isEqualTo(150);
+    }
+
+    @Test
+    void click_returns_404_when_ad_is_paused() {
+        Long adId = registerAdAndCharge("E2E Paused Click Test", 200);
+        restTemplate.exchange("/api/v1/ads/" + adId + "/status",
+                HttpMethod.PATCH, new HttpEntity<>(Map.of("status", "PAUSED")), Void.class);
+
+        ResponseEntity<Void> clickResponse = restTemplate.postForEntity(
+                "/api/v1/ads/" + adId + "/clicks", null, Void.class);
+
+        assertThat(clickResponse.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    void click_sets_anonymous_id_cookie_when_absent() {
+        Long adId = registerAdAndCharge("E2E Cookie Test Ad", 200);
+
+        ResponseEntity<Map> clickResponse = restTemplate.postForEntity(
+                "/api/v1/ads/" + adId + "/clicks", null, Map.class);
+
+        assertThat(clickResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        List<String> setCookieHeaders = clickResponse.getHeaders().get(HttpHeaders.SET_COOKIE);
+        assertThat(setCookieHeaders).isNotNull();
+        assertThat(setCookieHeaders.stream()
+                .anyMatch(h -> h.startsWith("anonymous_id="))).isTrue();
+    }
+
     private Long registerAdAndGetId(String name) {
         Map<String, Object> request = Map.of("advertiserId", 1, "name", name);
         ResponseEntity<Map> response = restTemplate.postForEntity("/api/v1/ads", request, Map.class);
         return ((Number) response.getBody().get("id")).longValue();
+    }
+
+    private Long registerAdAndCharge(String name, int amount) {
+        Long adId = registerAdAndGetId(name);
+        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge",
+                Map.of("amount", amount), Map.class);
+        return adId;
     }
 
     private void chargeBalance(Long adId, int amount) {
