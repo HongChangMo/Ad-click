@@ -56,7 +56,9 @@ class ClickEventJpaRepositoryTest {
 
         ClickEvent saved = clickEventJpaRepository.save(event);
 
-        assertThat(saved.getId()).isNotNull();
-        assertThat(saved.getAnonymousId()).isNull();
+        Optional<ClickEvent> found = clickEventJpaRepository.findById(saved.getId());
+        assertThat(found).isPresent();
+        assertThat(found.get().getAnonymousId()).isNull();
+        assertThat(found.get().getClickedAt()).isNotNull();
     }
 }
