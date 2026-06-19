@@ -37,42 +37,45 @@
       "id": "ad-rotation",
       "priority": 3,
       "area": "ad-management",
-      "title": "Round Robin 광고 균등 노출",
-      "user_visible_behavior": "GET /api/v1/ads/next 를 반복 호출하면 활성 광고가 순서대로 균등하게 반환된다.",
+      "title": "Round Robin 광고 균등 노출 + 조회 과금",
+      "user_visible_behavior": "GET /api/v1/ads/next 를 반복 호출하면 활성 광고가 순서대로 균등하게 반환되고, 호출 시마다 해당 광고의 잔액에서 10원이 차감된다.",
       "status": "done",
       "verification": [
         "광고 3개 등록 후 GET /api/v1/ads/next 를 9회 호출했을 때 각 광고가 정확히 3번씩 반환된다.",
+        "GET /api/v1/ads/next 1회 호출 후 해당 광고 잔액이 10원 감소했는지 확인한다.",
         "Valkey 재시작 후 큐가 비어있을 때 SETNX 락으로 단일 재구성이 이루어지는지 확인한다.",
         "Valkey 장애 시 DB Fallback으로 ACTIVE 광고가 랜덤하게 반환되는지 확인한다."
       ],
-      "evidence": "AdRotationFacadeTest: 5개 유닛 테스트 PASS (round robin, queue rebuild, lock-loss fallback, valkey fallback, no-active-ad). ValKeyRotationAdapterTest: 4개 통합 테스트 PASS (Redis:7.2 Testcontainer). AdApiE2ETest: Round Robin E2E 2개 추가. 전체 32개 테스트 PASS. (2026-06-18)",
-      "notes": "Valkey LPOP/RPUSH 기반. 재시작 시 SETNX 분산 락으로 단일 재구성. 락 획득 실패 시 DB random fallback."
+      "evidence": "AdRotationFacadeTest: 6개 유닛 PASS (Round Robin + VIEW 과금 포함). ValKeyRotationAdapterTest: 4개 통합 PASS. AdApiE2ETest: Round Robin E2E 2개 + VIEW 과금 E2E 1개 PASS. 전체 테스트 PASS. (2026-06-19)",
+      "notes": "BalanceFacade.deduct(adId, 10, VIEW) 호출로 조회 과금 처리. AdRotationFacade.getNextAd()는 @Transactional(readOnly=false). TransactionType: CHARGE | VIEW | CLICK | REFUND."
     },
     {
       "id": "click-record",
       "priority": 4,
-      "area": "ad-click",
-      "title": "클릭 이벤트 수신 및 잔액 차감",
-      "user_visible_behavior": "POST /api/v1/ads/{adId}/clicks 호출 시 잔액에서 10원이 차감되고 클릭 이벤트가 기록된다.",
-      "status": "not_started",
+      "area": "ad-click + ad-management(retroactive)",
+      "title": "조회 과금(10원) + 클릭 이벤트 수신 및 잔액 차감(50원)",
+      "user_visible_behavior": "GET /api/v1/ads/next 호출 시 10원 차감. POST /api/v1/ads/{adId}/clicks 호출 시 잔액에서 50원이 차감되고 클릭 이벤트가 기록된다.",
+      "status": "done",
       "verification": [
-        "클릭 1회 후 잔액이 정확히 10원 감소했는지 확인한다.",
-        "balance_transactions 테이블에 DEDUCT 이력이 기록됐는지 확인한다.",
+        "GET /api/v1/ads/next 1회 호출 후 해당 광고 잔액이 정확히 10원 감소했는지 확인한다.",
+        "balance_transactions 테이블에 VIEW 이력이 기록됐는지 확인한다.",
+        "클릭 1회 후 잔액이 정확히 50원 감소했는지 확인한다.",
+        "balance_transactions 테이블에 CLICK 이력이 기록됐는지 확인한다.",
         "click_events 테이블에 is_valid=true 로 기록됐는지 확인한다.",
         "anonymous_id 쿠키가 없는 요청에서 Set-Cookie 응답 헤더로 UUID가 발급되는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "트랜잭션 범위: 광고 상태 체크 → 잔액 차감 → 클릭 기록 → 상태 업데이트"
+      "evidence": "ClickFacadeTest: 4개 유닛. ClickEventJpaRepositoryTest: 2개 통합. AdApiE2ETest: click E2E 3개 + view charge E2E 1개 추가. 전체 테스트 PASS. (2026-06-19)",
+      "notes": "트랜잭션 범위: 조회/클릭 이벤트별 차감 금액 다름 (VIEW=10원, CLICK=50원). Task 0: AdRotationFacade에 view-charge 추가 (retroactive). Task 1부터: ad-click 모듈 신규 구현."
     },
     {
       "id": "balance-concurrency",
       "priority": 5,
       "area": "ad-click",
       "title": "잔액 차감 동시성 처리 (따닥 이슈 방어)",
-      "user_visible_behavior": "동시에 N개의 클릭이 들어와도 잔액이 정확히 N × 10원만 차감되고 음수가 되지 않는다.",
+      "user_visible_behavior": "동시에 N개의 클릭이 들어와도 잔액이 정확히 N × 50원만 차감되고 음수가 되지 않는다.",
       "status": "not_started",
       "verification": [
-        "잔액 100원인 광고에 동시 클릭 20개 발생 시 정확히 10개만 차감(100원)되는지 확인한다.",
+        "잔액 500원인 광고에 동시 클릭 20개 발생 시 정확히 10개만 차감(500원)되는지 확인한다.",
         "잔액이 0이 된 이후 추가 클릭 요청이 404로 차단되는지 확인한다.",
         "동시성 테스트: ExecutorService 또는 CountDownLatch로 100개 스레드 동시 요청 후 잔액 검증."
       ],
