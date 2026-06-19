@@ -3,33 +3,44 @@ package com.adclick.management.application;
 import com.adclick.management.application.info.AdInfo;
 import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdRotationQueuePort;
+import com.adclick.management.domain.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 @Service
 public class AdRotationFacade {
 
+    private static final BigDecimal VIEW_COST = BigDecimal.TEN;
+
     private final AdRepository adRepository;
     private final AdRotationQueuePort queuePort;
+    private final BalanceFacade balanceFacade;
 
-    public AdRotationFacade(AdRepository adRepository, AdRotationQueuePort queuePort) {
+    public AdRotationFacade(AdRepository adRepository,
+                            AdRotationQueuePort queuePort,
+                            BalanceFacade balanceFacade) {
         this.adRepository = adRepository;
         this.queuePort = queuePort;
+        this.balanceFacade = balanceFacade;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AdInfo getNextAd() {
+        AdInfo adInfo;
         try {
-            return nextAdFromQueue()
+            adInfo = nextAdFromQueue()
                     .orElseGet(this::nextAdFromDb);
         } catch (NoActiveAdException e) {
             throw e;
         } catch (Exception e) {
             // Valkey 장애 Fallback
-            return nextAdFromDb();
+            adInfo = nextAdFromDb();
         }
+        balanceFacade.deduct(adInfo.id(), VIEW_COST, TransactionType.VIEW);
+        return adInfo;
     }
 
     private Optional<AdInfo> nextAdFromQueue() {

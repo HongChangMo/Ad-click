@@ -7,6 +7,7 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.http.*;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.Container.ExecResult;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -166,6 +167,38 @@ class AdApiE2ETest {
         ResponseEntity<Map> response = restTemplate.getForEntity("/api/v1/ads/next", Map.class);
         assertThat(response.getStatusCode().is2xxSuccessful()
                 || response.getStatusCode() == HttpStatus.NOT_FOUND).isTrue();
+    }
+
+    @Test
+    void getNextAd_deducts_10_from_balance_on_view() {
+        Long adId = registerAdAndGetId("View Charge Test Ad");
+        restTemplate.postForEntity("/api/v1/ads/" + adId + "/balance/charge",
+                Map.of("amount", 100), Map.class);
+
+        // Valkey 큐를 비워 다음 /next 호출 시 전체 ACTIVE 광고(우리 광고 포함)를 포함하는 큐 재구성을 유도
+        try {
+            redis.execInContainer("redis-cli", "DEL", "ad:rotation:queue");
+        } catch (Exception ignored) {
+            // 큐 초기화 실패 시에도 테스트 계속 진행
+        }
+
+        // GET /next를 반복 호출하여 우리 광고가 반환될 때까지 대기 (최대 200회)
+        // 큐 재구성 후 모든 ACTIVE 광고가 포함되므로, 이 광고도 반드시 선택됨
+        for (int i = 0; i < 200; i++) {
+            ResponseEntity<Map> next = restTemplate.getForEntity("/api/v1/ads/next", Map.class);
+            if (next.getStatusCode().is2xxSuccessful() && next.getBody() != null) {
+                Long returnedId = ((Number) next.getBody().get("id")).longValue();
+                if (returnedId.equals(adId)) {
+                    break;
+                }
+            }
+        }
+
+        // 우리 광고가 최소 1회 VIEW 과금됐으므로 잔액이 초기값(100)보다 감소했는지 확인
+        ResponseEntity<Map> balanceResponse = restTemplate.getForEntity(
+                "/api/v1/ads/" + adId + "/balance", Map.class);
+        int finalBalance = ((Number) balanceResponse.getBody().get("balance")).intValue();
+        assertThat(finalBalance).isLessThan(100);
     }
 
     private Long registerAdAndGetId(String name) {

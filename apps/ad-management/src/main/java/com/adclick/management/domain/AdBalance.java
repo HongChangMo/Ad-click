@@ -32,6 +32,11 @@ public class AdBalance {
         this.updatedAt = LocalDateTime.now();
     }
 
+    public void subtract(BigDecimal amount) {
+        this.balance = this.balance.subtract(amount);
+        this.updatedAt = LocalDateTime.now();
+    }
+
     public Long getAdId() { return adId; }
     public BigDecimal getBalance() { return balance; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

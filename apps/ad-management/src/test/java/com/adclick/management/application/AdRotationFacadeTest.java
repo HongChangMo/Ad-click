@@ -5,12 +5,14 @@ import com.adclick.management.domain.Ad;
 import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdRotationQueuePort;
 import com.adclick.management.domain.AdStatus;
+import com.adclick.management.domain.TransactionType;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +27,7 @@ class AdRotationFacadeTest {
 
     @Mock AdRepository adRepository;
     @Mock AdRotationQueuePort queuePort;
+    @Mock BalanceFacade balanceFacade;
 
     @InjectMocks AdRotationFacade adRotationFacade;
 
@@ -112,5 +115,20 @@ class AdRotationFacadeTest {
 
         assertThatThrownBy(() -> adRotationFacade.getNextAd())
                 .isInstanceOf(NoActiveAdException.class);
+    }
+
+    @Test
+    void getNextAd_deducts_view_charge_after_returning_ad() {
+        Ad ad = mock(Ad.class);
+        given(ad.getId()).willReturn(1L);
+        given(ad.getName()).willReturn("Test Ad");
+        given(ad.getStatus()).willReturn(AdStatus.ACTIVE);
+
+        given(queuePort.poll()).willReturn(Optional.of(1L));
+        given(adRepository.findById(1L)).willReturn(Optional.of(ad));
+
+        adRotationFacade.getNextAd();
+
+        verify(balanceFacade).deduct(1L, BigDecimal.TEN, TransactionType.VIEW);
     }
 }

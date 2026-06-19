@@ -48,6 +48,15 @@ public class BalanceFacade {
         return BalanceInfo.from(adBalance);
     }
 
+    @Transactional
+    public void deduct(Long adId, BigDecimal amount, TransactionType type) {
+        AdBalance balance = adBalanceRepository.findByAdId(adId)
+                .orElseGet(() -> AdBalance.of(adId));
+        balance.subtract(amount);
+        adBalanceRepository.save(balance);
+        transactionRepository.save(BalanceTransaction.of(adId, amount, type));
+    }
+
     @Transactional(readOnly = true)
     public BalanceInfo getBalance(Long adId) {
         adRepository.findById(adId)
