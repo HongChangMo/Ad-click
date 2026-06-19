@@ -70,6 +70,7 @@ class ClickFacadeTest {
                 .isInstanceOf(AdNotFoundException.class);
 
         verify(balanceFacade, never()).deduct(any(), any(), any());
+        verify(clickEventRepository, never()).save(any());
     }
 
     @Test
@@ -82,5 +83,6 @@ class ClickFacadeTest {
                 .isInstanceOf(AdNotFoundException.class);
 
         verify(balanceFacade, never()).deduct(any(), any(), any());
+        verify(clickEventRepository, never()).save(any());
     }
 }
