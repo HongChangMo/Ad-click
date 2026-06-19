@@ -7,12 +7,101 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `ad-rotation` (priority 3) — Round Robin 광고 균등 노출 |
-| Current blocker | 없음 — ad-crud, balance-charge 완성 |
+| Highest priority unfinished feature | `balance-concurrency` (priority 5) — SELECT FOR UPDATE + 음수 방어 |
+| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 007 — 2026-06-19
+
+**Goal**
+click-record (priority 4) — POST /api/v1/ads/{adId}/clicks: 50원 차감 + 클릭 이벤트 기록 + VIEW 과금 소급 수정
+
+**Completed**
+- `BalanceFacade.deduct()` scope-creep 수정 (clamping + EXHAUSTED 자동 전환 제거 — priority 6 범위)
+- `AdBalance.subtract()` 가드 제거 (priority 5에서 SELECT FOR UPDATE와 함께 처리)
+- Task 0: `AdRotationFacade` VIEW 과금(10원) 소급 추가, `BalanceFacade.deduct(adId, 10, VIEW)` 호출
+- Task 1: `ClickEvent` 엔티티 + `ClickEventRepository` 도메인 인터페이스 (ad-click 모듈 첫 Java)
+- Task 2: `ClickEventJpaRepository` + `ClickEventRepositoryAdapter` + `TestApplication` + 통합 테스트 2개
+- Task 3: `ClickFacade.click()` (50원 차감, ACTIVE 체크, 클릭 이벤트 저장) + `ClickInfo` + 유닛 테스트 4개
+- Task 4: `ClickController` — POST /api/v1/ads/{adId}/clicks, X-Forwarded-For, anonymous_id 쿠키 처리 (HttpOnly)
+- Task 5: E2E 테스트 3개 (50원 차감, PAUSED 404, 쿠키 발급) + feature_list.json 업데이트
+
+**Verification run**
+```
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 9 PASSED (deduct_view, deduct_click 추가)
+  - AdRotationFacadeTest: 6 PASSED (view charge 검증 추가)
+  - ClickFacadeTest: 4 PASSED (Unit)
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 2 PASSED
+  - ValKeyRotationAdapterTest: 4 PASSED
+  - AdApiE2ETest: 12 PASSED (기존 9 + click E2E 3 신규)
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 45개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: ad-rotation status → done, click-record status → done
+
+**Known issues / Lessons**
+- `BalanceFacade.deduct()` 호출 전 ACTIVE 광고라도 잔액이 0일 수 있음 → priority 5에서 SELECT FOR UPDATE + 잔액 체크 필요
+- `AdNotFoundException`을 PAUSED/EXHAUSTED 케이스에도 사용 → HTTP 404 정확, 로그 메시지 혼동 가능 (priority 6 이전에 개선)
+- `ClickFacade`가 `AdRepository`를 직접 주입 (ad-management 의존) — 승인된 의존 방향이므로 문제 없음
+
+**Next best action**
+`balance-concurrency` (priority 5): SELECT FOR UPDATE + 음수 잔액 방어
+
+---
+
+### Session 006 — 2026-06-18
+
+**Goal**
+ad-rotation (priority 3) — Round Robin 광고 균등 노출 구현
+
+**Completed**
+- `AdRotationQueuePort` 인터페이스 (domain): `offer`, `poll`, `tryRebuildLock`, `releaseRebuildLock`
+- `NoActiveAdException` (application): ACTIVE 광고 없을 때 404
+- `AdRotationFacade` (application): LPOP poll → 빈 큐 시 SETNX 재구성 → RPUSH round robin, Valkey 장애 DB fallback
+- `AdRotationController` (interfaces): GET /api/v1/ads/next
+- `ValKeyRotationAdapter` (infrastructure): StringRedisTemplate 기반 LPOP/RPUSH/SETNX
+- `AdRepository` 메서드 추가: `findAllActiveIds()`, `findRandomActive()`
+- `BalanceFacade` 수정: EXHAUSTED → ACTIVE 전환 시 `queuePort.offer(adId)` 추가
+- 테스트: `AdRotationFacadeTest` (5 unit) + `ValKeyRotationAdapterTest` (4 integration) + E2E 2개 추가
+- PR #2 생성 및 머지 완료
+
+**Verification run**
+```
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 7 PASSED
+  - AdRotationFacadeTest: 5 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ValKeyRotationAdapterTest: 4 PASSED
+  - AdApiE2ETest: 8 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 32개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: ad-rotation status → done
+
+**Known issues / Lessons**
+- `@Param("status")` 누락 시 `-parameters` 플래그 의존 → 명시적 `@Param` 필수
+- Lock-loss path는 `nextAdFromQueue()` → `Optional.empty()` → `nextAdFromDb()` fallback 흐름으로 처리해야 함
+- `BalanceFacade` 내 `queuePort.offer()` 가 `@Transactional` 내부에서 호출되어 롤백 시 불일치 가능 → priority 6 (ad-exhausted) 구현 시 `@TransactionalEventListener(AFTER_COMMIT)` 적용 예정
+
+**Next best action**
+`click-record` (priority 4): POST /api/v1/ads/{adId}/clicks — 잔액 10원 차감, 클릭 이벤트 기록, anonymous_id 쿠키 처리
 
 ---
 

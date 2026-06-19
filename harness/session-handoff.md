@@ -4,34 +4,45 @@
 
 ---
 
-## Last Updated: 2026-06-16 (Session 005)
+## Last Updated: 2026-06-19 (Session 007)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 16개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 45개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
-  - `BalanceFacadeTest` (7) — Unit
+  - `BalanceFacadeTest` (9) — Unit
+  - `AdRotationFacadeTest` (6) — Unit
+  - `ClickFacadeTest` (4) — Unit
   - `AdJpaRepositoryTest` (1) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
-  - `AdApiE2ETest` (6) — E2E (MySQL + Redis Testcontainer)
+  - `ClickEventJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
+  - `ValKeyRotationAdapterTest` (4) — Integration (Redis:7.2 Testcontainer)
+  - `AdApiE2ETest` (12) — E2E (MySQL + Redis Testcontainer)
   - `AdClickApplicationTest` (1) — Context load
   - `DependencyDirectionTest` (1) — 의존 방향 단방향 확인
 - `ad-crud` feature: **done**
 - `balance-charge` feature: **done**
+- `ad-rotation` feature: **done**
+- `click-record` feature: **done**
 
 ---
 
-## Changes This Session
+## Changes This Session (Session 007)
 
-코드 변경 없음 — 설계 문서 보완만 진행.
-
-- `docs/plans/2026-06-09-ad-click-aggregation-design.md`
-  - Section 5.5에 `#### Circuit Breaker 동작 방식 및 Fallback 기본값 (2단계 이후)` 서브섹션 추가
-  - 컴포넌트별 Fallback 반환값 표: `isAbuser()` → `false`, `getNextAdId()` → DB 랜덤, `deductBalance()` → DB Pessimistic Lock
-  - Circuit Breaker 상태 전환 흐름 (CLOSED → OPEN → HALF-OPEN → CLOSED) 다이어그램
-  - Resilience4j `@CircuitBreaker` + `fallbackMethod` 코드 예시
+- `BalanceFacade.deduct()` scope-creep 수정: clamping + EXHAUSTED 자동 전환 제거
+- `AdBalance.subtract()` 음수 가드 제거 (priority 5에서 SELECT FOR UPDATE와 함께 처리)
+- `TransactionType`: CHARGE | VIEW | CLICK | REFUND
+- `AdRotationFacade.getNextAd()`: `@Transactional` + BalanceFacade 주입 + VIEW 10원 차감
+- **ad-click 모듈 첫 Java 구현:**
+  - `ClickEvent` 엔티티 (click_events 테이블)
+  - `ClickEventRepository` 도메인 인터페이스
+  - `ClickEventJpaRepository` + `ClickEventRepositoryAdapter`
+  - `ClickFacade.click(adId, ip, anonId)` — ACTIVE 체크 + 50원 차감 + 클릭 기록
+  - `ClickInfo` (Facade 반환 객체)
+  - `ClickController` — POST /api/v1/ads/{adId}/clicks, X-Forwarded-For IP, anonymous_id 쿠키 (HttpOnly)
+  - E2E 테스트 3개 추가
 
 ---
 
@@ -40,22 +51,34 @@
 ```
 com.adclick.management/
   interfaces/api/
-    AdController.java
-    BalanceController.java
+    AdController.java, BalanceController.java, AdRotationController.java
     dto/: AdRegisterRequest, AdStatusChangeRequest, BalanceChargeRequest
   application/
-    AdFacade.java, BalanceFacade.java
-    AdNotFoundException.java
+    AdFacade.java, BalanceFacade.java, AdRotationFacade.java
+    AdNotFoundException.java, NoActiveAdException.java
     info/: AdInfo, BalanceInfo
   domain/
     Ad.java, AdStatus.java, AdRepository.java
     AdBalance.java, AdBalanceRepository.java
     BalanceTransaction.java, BalanceTransactionRepository.java
-    TransactionType.java
+    TransactionType.java (CHARGE | VIEW | CLICK | REFUND)
+    AdRotationQueuePort.java
   infrastructure/
     AdJpaRepository.java, AdRepositoryAdapter.java
     AdBalanceJpaRepository.java, AdBalanceRepositoryAdapter.java
     BalanceTransactionJpaRepository.java, BalanceTransactionRepositoryAdapter.java
+    ValKeyRotationAdapter.java
+
+com.adclick.click/
+  interfaces/api/
+    ClickController.java  ← POST /api/v1/ads/{adId}/clicks
+  application/
+    ClickFacade.java
+    info/: ClickInfo.java
+  domain/
+    ClickEvent.java, ClickEventRepository.java
+  infrastructure/
+    ClickEventJpaRepository.java, ClickEventRepositoryAdapter.java
 ```
 
 ---
@@ -63,26 +86,30 @@ com.adclick.management/
 ## Still Broken or Unverified
 
 - `bootRun` 미검증 (로컬 DB/Valkey 연결 필요)
-- `ad-rotation` ~ `reconciliation-batch` 모든 feature `not_started`
+- `AdJpaRepositoryTest` gap: `findAllActiveIds()`, `findRandomActive()` 통합 테스트 미작성
+  - E2E로 검증되어 있으나 infrastructure 계층 테스트 부재
+- 잔액 음수 방어 미적용 (priority 5): `AdBalance.subtract()` 가드 없음 → SELECT FOR UPDATE 도입 시 추가
+- EXHAUSTED 자동 전환 미적용 (priority 6)
+- 어뷰징 방어 미적용 (priority 7)
 
 ---
 
+## 요구사항 (확정)
+
+- **조회(GET /api/v1/ads/next)**: 10원 차감 (VIEW 트랜잭션)
+- **클릭(POST /api/v1/ads/{adId}/clicks)**: 50원 차감 (CLICK 트랜잭션)
+- `TransactionType`: `CHARGE` | `VIEW` | `CLICK` | `REFUND`
+
 ## Next Best Action
 
-**`ad-rotation` (priority 3) 구현 시작**
-
-구현 대상:
-- `AdRotationService` — application: `getNextAd()` 메서드
-  - Valkey LPOP으로 다음 광고 ID 가져오기
-  - RPUSH로 큐 끝에 다시 추가 (Round Robin)
-  - 큐 비어있으면 SETNX 분산 락으로 단일 재구성
-  - Valkey 장애 시 DB Fallback (ACTIVE 광고 랜덤)
-- `AdRotationController` — interfaces: GET /api/v1/ads/next
-- `BalanceFacade.charge()` 완성: EXHAUSTED → ACTIVE 전환 시 Valkey 큐에 RPUSH
-- `ValKeyRotationAdapter` — infrastructure: Valkey LPOP/RPUSH/SETNX 래핑
+**`balance-concurrency` (priority 5) 구현:**
+- `AdBalance.subtract()`: 음수 방어 가드 추가
+- `BalanceFacade.deduct()`: `SELECT FOR UPDATE` (pessimistic lock)
+- 동시성 테스트: `ExecutorService` 50~100 스레드 동시 클릭 → 잔액 검증
 
 **건드리지 말아야 할 것**
-- 설계 문서, 기존 테스트
+- priority 6 (ad-exhausted): EXHAUSTED 자동 전환 미적용
+- priority 7 (abuse-guard): Valkey TTL 어뷰징 체크 미적용
 
 ---
 
@@ -94,9 +121,10 @@ com.adclick.management/
 
 # 특정 모듈 테스트
 ./gradlew :apps:ad-management:test
+./gradlew :apps:ad-click:test
 ./gradlew :apps:ad-api:test
 
 # 특정 테스트 클래스
-./gradlew :apps:ad-management:test --tests "com.adclick.management.application.BalanceFacadeTest"
+./gradlew :apps:ad-click:test --tests "com.adclick.click.application.ClickFacadeTest"
 ./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest"
 ```
