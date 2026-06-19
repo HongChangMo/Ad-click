@@ -39,7 +39,7 @@
 
 | # | 요구사항 | 비고 |
 |---|----------|------|
-| R1 | 클릭 발생 시 광고주 잔액에서 건당 10원 차감 | 선결제 후 차감 방식 |
+| R1 | 조회(노출) 발생 시 10원, 클릭 발생 시 50원 차감 | 선결제 후 차감 방식, 광고주 잔액에서 이벤트별 차감 |
 | R2 | 광고마다 충전 금액이 다를 수 있음 | 광고별 독립 잔액 관리 |
 | R3 | 잔액 소진 시 해당 광고 자동 중단 | 실시간 반영 필요 |
 | R4 | 노출 광고는 우선순위 없이 균등 분배 | 특정 광고 편중 방지 |
@@ -468,7 +468,7 @@ CREATE TABLE balance_transactions (
     id          BIGINT         PRIMARY KEY AUTO_INCREMENT,
     ad_id       BIGINT         NOT NULL,
     amount      DECIMAL(15, 2) NOT NULL,
-    type        VARCHAR(10)    NOT NULL, -- CHARGE | DEDUCT
+    type        VARCHAR(10)    NOT NULL, -- CHARGE | VIEW | CLICK | REFUND
     created_at  DATETIME       NOT NULL
 );
 
@@ -501,8 +501,8 @@ POST   /api/v1/ads/{adId}/balance/charge  잔액 충전
 GET    /api/v1/ads/{adId}/balance         잔액 조회
 
 # 광고 노출 및 클릭
-GET    /api/v1/ads/next                   다음 노출 광고 조회 (Round Robin)
-POST   /api/v1/ads/{adId}/clicks          클릭 이벤트 수신
+GET    /api/v1/ads/next                   다음 노출 광고 조회 (Round Robin, 조회 시 10원 차감)
+POST   /api/v1/ads/{adId}/clicks          클릭 이벤트 수신 (클릭 시 50원 차감)
 
 # 통계
 GET    /api/v1/ads/{adId}/clicks/stats    클릭 통계 조회
@@ -510,7 +510,27 @@ GET    /api/v1/ads/{adId}/clicks/stats    클릭 통계 조회
 
 ---
 
-## 8. 클릭 처리 상세 흐름
+## 8. 이벤트 처리 상세 흐름
+
+### 8.1 조회 처리 흐름 (GET /api/v1/ads/next)
+
+```
+GET /api/v1/ads/next
+   │
+   ├─ [1] Round Robin Queue (Valkey LPOP)
+   │       큐 비어있음 → SETNX 락으로 단일 재구성 (DB ACTIVE 광고 RPUSH)
+   │       Valkey 장애 → DB에서 ACTIVE 광고 랜덤 선택 (Fallback)
+   │
+   ├─ [2~3 단일 트랜잭션]
+   │   ├─ [2] 잔액 10원 차감 + balance_transactions INSERT (type=VIEW)
+   │   └─ [3] 잔액 소진 시 ads 상태 EXHAUSTED 업데이트
+   │
+   ├─ [4] Valkey RPUSH (Round Robin 순환 유지)
+   │
+   └─ 200 OK 응답 (AdInfo)
+```
+
+### 8.2 클릭 처리 흐름 (POST /api/v1/ads/{adId}/clicks)
 
 ```
 POST /api/v1/ads/{adId}/clicks
@@ -533,8 +553,8 @@ POST /api/v1/ads/{adId}/clicks
    ├─ [4~7 단일 트랜잭션]
    │   ├─ [4] BalanceService
    │   │       ad_balances SELECT FOR UPDATE
-   │   │       잔액 < 10원 → 광고 EXHAUSTED 처리 + Valkey 큐 제거
-   │   ├─ [5] 잔액 10원 차감 + balance_transactions INSERT
+   │   │       잔액 < 50원 → 광고 EXHAUSTED 처리 + Valkey 큐 제거
+   │   ├─ [5] 잔액 50원 차감 + balance_transactions INSERT (type=CLICK)
    │   ├─ [6] click_events INSERT (is_valid=true)
    │   └─ [7] 잔액 소진 시 ads 상태 EXHAUSTED 업데이트
    │
