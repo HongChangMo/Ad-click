@@ -65,10 +65,13 @@ adclick:
         fixed-delay-ms: 60000
         window-minutes: 10
         lag-seconds: 30
+        lock-ttl-seconds: 300
 ```
 
 위 설정은 매 60초마다 현재 시각에서 30초 lag를 둔 최근 10분 구간을 보정한다.
 수동 API도 동일 runner를 사용하므로 보정 로직의 진입점은 하나로 유지된다.
+스케줄 runner는 Valkey TTL lock으로 중복 실행을 방지한다. 기본 TTL은 300초다.
+Valkey 장애로 lock 확인이 실패하면 보정 누락을 피하기 위해 fail-open으로 1회 실행한다.
 
 ## 점검 명령
 
@@ -87,5 +90,5 @@ docker compose logs valkey
 
 - 인증/권한은 아직 없다.
 - 스키마 마이그레이션 도구는 아직 없다. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비한다.
-- reconciliation 스케줄 runner는 property 기반으로 켜고 끌 수 있다. 운영 락/중복 실행 방지는 아직 없다.
+- reconciliation 스케줄 runner는 Valkey TTL lock으로 중복 실행을 방지한다. 다만 lock은 Valkey 장애 시 fail-open이므로 강한 exactly-once batch 보장은 아니다.
 - Retry/circuit breaker metric/actuator 노출은 아직 없다.
