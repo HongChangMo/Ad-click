@@ -12,7 +12,7 @@
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 90개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 92개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
@@ -26,6 +26,7 @@
   - `ClickRateLimiterTest` (1) — Unit
   - `KafkaClickEventPublisherTest` (1) — Unit
   - `ClickEventAggregationConsumerTest` (1) — Unit
+  - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
@@ -66,7 +67,9 @@
 - MVP 2 `kafka-click-aggregation-foundation` (priority 14) 구현 완료.
 - `apps:ad-aggregation` 모듈 추가.
   - Spring Kafka 기반 consumer 모듈.
-  - 현재 consumer는 `ClickEventMessage` 수신 로그만 남기는 최소 연결 단계.
+  - `ClickEventMessage` 수신 후 DB 처리 성공 시 manual ack.
+  - `processed_click_events.click_event_id` 기준 idempotency 처리.
+  - `click_daily_stats` 일별 valid/invalid projection 업데이트.
 - `ad-click`에 Kafka producer 추가.
   - `ClickEventPublisher` 포트 추가.
   - `KafkaClickEventPublisher` 구현 추가.
@@ -77,16 +80,20 @@
   - Kafka: `localhost:9092`
   - Kafka UI: `http://localhost:8081`
 - `application.yml`에 Kafka producer/consumer JSON 직렬화 설정 추가.
+  - producer idempotence: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`, `max.in.flight.requests.per.connection=5`.
+  - consumer: `enable-auto-commit=false`, listener `ack-mode=manual`.
   - producer `max.block.ms=100`으로 브로커 부재 시 요청 지연 제한.
 - README/runbook에 Kafka topic 및 Kafka UI 정보 추가.
 - 추가 테스트:
   - `KafkaClickEventPublisherTest` (1)
   - `ClickEventAggregationConsumerTest` (1)
+  - `ClickAggregationServiceTest` (2)
   - `ClickFacadeTest`에 afterCommit publish 검증 추가.
 - 검증:
   - `./gradlew :apps:ad-click:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-click:test :apps:ad-aggregation:test :apps:ad-api:test` → BUILD SUCCESSFUL
   - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
-  - `./gradlew test` → BUILD SUCCESSFUL (전체 90개 PASS)
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 92개 PASS)
 
 ## Changes Previous Session (Session 020)
 
@@ -340,7 +347,7 @@ com.adclick.click/
 - Resilience4j는 programmatic Retry + CircuitBreaker만 도입됨. Spring Boot Actuator/Prometheus metric 노출은 후속 운영성 후보.
 - Reconciliation scheduler는 Valkey TTL lock으로 중복 실행을 줄인다. Valkey 장애 시 fail-open이므로 강한 exactly-once batch 보장은 아님.
 - Kafka producer는 afterCommit direct publish 방식이다. Outbox/retry가 아직 없어 DB commit 후 Kafka publish 실패 가능성은 남아 있음.
-- Kafka consumer는 현재 수신 로그만 남기며 집계 projection/idempotency는 아직 없음.
+- Kafka consumer는 DB idempotency로 중복 집계 반영을 방지하지만 Kafka+DB 원자 트랜잭션은 아님.
 - 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
 - Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
 
@@ -357,7 +364,7 @@ com.adclick.click/
 **MVP 1 feature list 기준 priority 1-10 완료.**
 **MVP 2 priority 11-14 완료.**
 - Kafka click aggregation foundation PR 리뷰/머지.
-- 이후 MVP 2 다음 후보 선택: 집계 projection 테이블/idempotency, outbox/retry, 관리자 통계 API 중 택1.
+- 이후 MVP 2 다음 후보 선택: outbox/retry, 관리자 통계 API, Kafka 통합 테스트 중 택1.
 
 **건드리지 말아야 할 것**
 - 명시되지 않은 priority 15+ 후속 기능: outbox/retry 등 미적용

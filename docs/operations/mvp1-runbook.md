@@ -49,7 +49,10 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - producer module: `ad-click`
 - consumer module: `ad-aggregation`
 - Kafka publish 실패는 클릭 요청을 실패시키지 않고 fail-open 처리한다.
-- 현재 consumer는 수신 로그만 남기는 최소 연결 단계다.
+- producer는 idempotence를 켠다: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`.
+- consumer는 manual ack를 사용하고, DB 처리 성공 후 offset을 acknowledge한다.
+- consumer는 `processed_click_events.click_event_id`를 idempotency key로 사용한다.
+- consumer는 `click_daily_stats` 일별 projection을 업데이트한다.
 
 Kafka UI에서 topic과 consumer group을 확인할 수 있다.
 

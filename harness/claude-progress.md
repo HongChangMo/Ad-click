@@ -24,7 +24,7 @@
 ### Session 021 — 2026-06-20
 
 **Goal**
-MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 집계 Consumer 모듈 기반
+MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer 기반
 
 **Completed**
 - PR #9 `클릭 보정 Runner 중복 실행 방지` 머지 확인.
@@ -34,7 +34,14 @@ MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 집계 Consumer 모듈 �
 - `ClickFacade`에서 클릭 이벤트 저장 후 transaction commit 이후 Kafka publish 수행.
 - Kafka publish 실패는 클릭 요청을 실패시키지 않고 fail-open 처리.
 - `ad-aggregation`에 `ClickEventAggregationConsumer` 추가.
-  - 현재는 수신 로그만 남기는 최소 연결 단계.
+  - DB 처리 성공 후 manual ack.
+  - `processed_click_events.click_event_id` 기준 idempotency 처리.
+  - `click_daily_stats` 일별 valid/invalid projection 업데이트.
+- Producer idempotence 설정 추가.
+  - `enable.idempotence=true`
+  - `acks=all`
+  - `retries=Integer.MAX_VALUE`
+  - `max.in.flight.requests.per.connection=5`
 - `docker-compose.yml`에 Kafka + Kafka UI 추가.
   - Kafka: `localhost:9092`
   - Kafka UI: `http://localhost:8081`
@@ -44,19 +51,20 @@ MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 집계 Consumer 모듈 �
 **Verification run**
 ```
 ./gradlew :apps:ad-click:test :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-click:test :apps:ad-aggregation:test :apps:ad-api:test → BUILD SUCCESSFUL
 ./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
 ./gradlew test → BUILD SUCCESSFUL
-  전체 90개 PASS
+  전체 92개 PASS
 ```
 
 **Known issues / Lessons**
 - Kafka가 없는 테스트 환경에서 producer 메타데이터 대기를 줄이기 위해 `max.block.ms=100` 적용.
 - Kafka publish는 afterCommit direct publish 방식이므로 outbox 보장은 아직 없다.
-- Consumer는 아직 집계 테이블을 업데이트하지 않는다.
+- Consumer는 DB idempotency로 중복 집계 반영을 방지한다.
 - Kafka UI는 로컬 compose 편의 기능이다.
 
 **Next best action**
-Kafka foundation PR 리뷰/머지. 이후 집계 projection 테이블/idempotency 또는 outbox/retry 중 선택.
+Kafka foundation PR 리뷰/머지. 이후 outbox/retry, 관리자 통계 API, Kafka 통합 테스트 중 선택.
 
 ---
 

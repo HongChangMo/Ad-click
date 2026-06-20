@@ -101,6 +101,8 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 Kafka topic:
 
 - `ad-click-events`: 클릭 이벤트 발행 topic
+- `processed_click_events`: consumer idempotency table
+- `click_daily_stats`: Kafka consumer가 업데이트하는 일별 집계 projection
 
 Kafka UI:
 
