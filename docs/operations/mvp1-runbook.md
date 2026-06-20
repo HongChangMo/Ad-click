@@ -30,6 +30,8 @@
 - 36-40번 ACTIVE 광고는 잔액 소진 검증용 저잔액 광고
 
 seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영 데이터에는 사용하지 않는다.
+기존 로컬 DB 볼륨을 유지한 상태에서 `docs/schema.sql`이 바뀐 경우에는 `ddl-auto=validate`가 실패할 수 있다.
+이때는 로컬 DB를 재생성하거나 변경된 컬럼/인덱스를 수동 반영한 뒤 API를 기동한다.
 
 ## 어뷰징 방어
 
@@ -51,7 +53,9 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - outbox table: `click_event_outbox`
 - Kafka publish 실패는 outbox row를 `PENDING`으로 유지하고 `attempt_count`, `last_error`를 갱신한다.
 - relay 재시도 때문에 Kafka 이벤트는 중복 발행될 수 있으며, consumer idempotency가 최종 집계 중복 반영을 막는다.
-- outbox relay는 PENDING row를 설정된 batch size만큼 조회해 PROCESSING으로 표시한 뒤 Kafka send를 일괄 요청한다.
+- outbox relay는 짧은 claim 트랜잭션에서 PENDING row를 PROCESSING으로 표시한 뒤 commit하고, DB lock 없이 Kafka send를 일괄 요청한다.
+- relay 실패 row는 PENDING으로 되돌아가며 `next_retry_at` 이후 재시도된다. retry 지연은 initial interval, multiplier, max interval 설정을 따른다.
+- relay 장애로 PROCESSING에 남은 row는 `processing-timeout-seconds` 이후 PENDING으로 복구된다.
 - producer는 idempotence를 켠다: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`.
 - producer는 `batch-size`, `linger.ms`, `compression-type` 설정으로 broker 전송 효율을 높인다.
 - consumer는 batch listener와 manual ack를 사용하고, DB batch 처리 성공 후 offset을 acknowledge한다.

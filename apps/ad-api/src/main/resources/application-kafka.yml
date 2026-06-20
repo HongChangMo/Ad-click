@@ -38,3 +38,8 @@ adclick:
         fixed-delay-ms: 1000
         publish-timeout-ms: 1000
         batch-size: 100
+        processing-timeout-seconds: 300
+        retry:
+          initial-interval-ms: 1000
+          multiplier: 2.0
+          max-interval-ms: 60000

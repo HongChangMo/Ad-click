@@ -12,12 +12,48 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-19 완료 |
-| Current blocker | 없음 — Kafka outbox/consumer batch 처리 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-20 완료 |
+| Current blocker | 없음 — Outbox claim 분리와 retry backoff 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 027 — 2026-06-20
+
+**Goal**
+Outbox relay claim transaction 분리와 retry backoff
+
+**Completed**
+- `click_event_outbox`에 `claimed_by`, `claimed_at`, `next_retry_at` 추가.
+- `ClickEventOutboxClaimService` 추가.
+  - PENDING row를 짧은 트랜잭션에서 PROCESSING으로 claim.
+  - stale PROCESSING row를 PENDING으로 복구.
+  - publish 성공/실패 결과를 별도 트랜잭션으로 기록.
+- `ClickEventOutboxRelay`가 claim 이후 DB lock 없이 Kafka publish를 수행하도록 변경.
+- 실패 시 지수 백오프 기반 `next_retry_at` 설정.
+- relay 시작 시 stale PROCESSING row 복구 수행.
+- `application-kafka.yml`에 retry/processing-timeout 설정 추가.
+- `docs/schema.sql`, README, runbook, harness 갱신.
+- `ClickEventOutboxClaimServiceTest` 추가.
+- `ClickEventOutboxRelayTest` stale 복구 검증 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 100개 PASS (test tasks up-to-date)
+```
+
+**Known issues / Lessons**
+- claim은 짧은 DB lock으로 분리됐지만, publish 성공 후 결과 기록 전 프로세스가 죽으면 stale 복구 뒤 재발행될 수 있다. consumer idempotency가 최종 중복 집계를 막는다.
+- DLQ/FAILED 상태와 batch 일부 실패 정책은 후속 작업으로 남아 있다.
+
+**Next best action**
+전체 테스트 재검증 후 PR 생성/머지. 이후 DLQ/FAILED 상태 또는 관리자 통계 API 중 선택.
 
 ---
 
