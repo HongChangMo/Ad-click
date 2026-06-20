@@ -121,6 +121,14 @@ public class ClickEventOutbox {
         this.nextRetryAt = nextRetryAt;
     }
 
+    public void markPendingForManualRetry(LocalDateTime nextRetryAt) {
+        this.status = ClickEventOutboxStatus.PENDING;
+        this.claimedBy = null;
+        this.claimedAt = null;
+        this.failedAt = null;
+        this.nextRetryAt = nextRetryAt;
+    }
+
     private String truncate(String value) {
         if (value == null || value.length() <= 1000) {
             return value;

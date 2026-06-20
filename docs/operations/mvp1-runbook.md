@@ -74,6 +74,20 @@ ORDER BY failed_at DESC
 LIMIT 20;
 ```
 
+운영 API로도 `FAILED` row를 확인할 수 있다.
+
+```bash
+curl -s 'http://localhost:8080/api/v1/admin/click-event-outbox/failed?size=20'
+```
+
+Kafka broker 복구나 payload 검토가 끝난 뒤 재발행해도 된다고 판단한 row는 `PENDING`으로 되돌린다.
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/admin/click-event-outbox/{outboxId}/retry
+```
+
+재처리 API는 `FAILED` 상태인 row만 대상으로 한다. 이미 `PENDING`, `PROCESSING`, `PUBLISHED` 상태인 row나 존재하지 않는 id는 404를 반환한다.
+
 Kafka UI에서 topic과 consumer group을 확인할 수 있다.
 Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리한다.
 `application.yml`은 `spring.config.import=classpath:application-kafka.yml`로 해당 설정을 불러온다.

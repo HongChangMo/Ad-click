@@ -13,11 +13,44 @@
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
 | Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-20 완료 |
-| Current blocker | 없음 — Outbox DLQ/consumer 실패 정책 완료 |
+| Current blocker | 없음 — FAILED outbox 재처리 API 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 029 — 2026-06-20
+
+FAILED outbox 운영 조회/재처리 API
+
+**Merged**
+- PR #16 `Outbox DLQ와 Consumer 실패 정책 추가` merge 완료.
+
+**Implemented**
+- `ClickEventOutboxAdminService` 추가.
+- `GET /api/v1/admin/click-event-outbox/failed?size=20` 추가.
+- `POST /api/v1/admin/click-event-outbox/{outboxId}/retry` 추가.
+- `ClickEventOutbox.markPendingForManualRetry()` 추가.
+- `FAILED` row만 `PENDING`으로 되돌려 relay 재발행 대상에 포함한다.
+- 없는 id 또는 FAILED가 아닌 row는 404를 반환한다.
+- README/runbook/harness 갱신.
+
+**Verification**
+- `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+- `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+- `./gradlew test` → BUILD SUCCESSFUL
+  전체 107개 PASS (test tasks up-to-date)
+- `harness/feature_list.json` JSON parse OK
+- `git diff --check` PASS
+
+**Known issues / Follow-up**
+- 운영 API 인증/권한은 아직 없다.
+- consumer-side Kafka DLT topic은 아직 없다.
+
+**Next best action**
+PR 생성/머지.
 
 ---
 

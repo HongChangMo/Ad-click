@@ -48,7 +48,7 @@ Kafka UI는 `http://localhost:8081`에서 확인할 수 있습니다.
 ./gradlew test
 ```
 
-현재 전체 테스트는 102개입니다.
+현재 전체 테스트는 107개입니다.
 
 ## API 예시
 
@@ -98,6 +98,18 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 보정 runner를 주기 실행하려면 `adclick.click.reconciliation.runner.enabled=true`로 설정합니다.
 기본값은 false입니다. 스케줄 runner는 Valkey TTL lock으로 중복 실행을 줄입니다.
 
+FAILED outbox 조회:
+
+```bash
+curl -s 'http://localhost:8080/api/v1/admin/click-event-outbox/failed?size=20'
+```
+
+FAILED outbox 재처리:
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/admin/click-event-outbox/1/retry
+```
+
 Kafka topic:
 
 - `ad-click-events`: 클릭 이벤트 발행 topic
@@ -109,6 +121,7 @@ Kafka topic:
 - outbox relay는 짧은 트랜잭션에서 PENDING row를 PROCESSING으로 claim한 뒤 DB lock 없이 Kafka에 발행한다.
 - 실패 row는 지수 백오프 기반 `next_retry_at` 이후 재시도하고, 오래된 PROCESSING row는 timeout 이후 PENDING으로 복구한다.
 - 최대 재시도 횟수를 넘긴 outbox row는 `FAILED`로 격리되며, 이 테이블을 producer-side DLQ로 점검한다.
+- `POST /api/v1/admin/click-event-outbox/{outboxId}/retry`로 `FAILED` row를 `PENDING`으로 되돌려 relay 재발행 대상에 포함할 수 있다.
 - Kafka consumer는 batch listener로 동작하며 `spring.kafka.consumer.properties.max.poll.records`로 poll batch 크기를 조정한다.
 - Kafka consumer는 batch DB 처리 성공 후에만 manual ack를 수행하고, 실패 시 ack하지 않아 Kafka 재전달 대상이 되게 한다.
 - Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리하고,
