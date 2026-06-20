@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 029)
+## Last Updated: 2026-06-20 (Session 030)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 107개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 110개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -34,6 +34,8 @@
   - `ClickEventAggregationConsumerTest` (2) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
+  - `ClickEventAggregationConsumerDltIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
+  - `KafkaTopicConfigTest` (2) — Unit
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
@@ -65,6 +67,7 @@
 - `outbox-claim-retry-backoff` feature: **done**
 - `outbox-dlq-consumer-failure-policy` feature: **done**
 - `outbox-failed-retry-api` feature: **done**
+- `kafka-consumer-dlt-runbook` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -82,7 +85,33 @@
 
 ---
 
-## Changes This Session (Session 029)
+## Changes This Session (Session 030)
+
+- PR #17 `FAILED Outbox 재처리 API 추가` merge 완료.
+- Consumer-side DLT 설정 추가.
+  - `KafkaConsumerDltConfig` 추가.
+  - `DefaultErrorHandler`와 `DeadLetterPublishingRecoverer` 사용.
+  - `adclick.kafka.topics.click-events-dlt` 추가.
+  - `adclick.kafka.topics.auto-create-enabled` 조건부 topic 자동 생성 설정 추가.
+  - `auto-create-enabled=false` 기본값으로 Kafka 없는 테스트/컨텍스트 지연 방지.
+  - `adclick.kafka.consumer.dlt.retry-interval-ms`, `max-attempts` 추가.
+- Embedded Kafka 기반 DLT 통합 테스트 추가.
+  - consumer batch 처리 실패 후 retry 소진 시 DLT topic으로 메시지가 발행되는지 검증.
+  - `KafkaTopicConfigTest` 추가.
+  - topic 자동 생성 bean이 property true에서만 생성되는지 검증.
+- 로컬 실행 및 장애 점검 가이드 추가.
+  - `docs/operations/local-run-guide.md`
+  - Kafka UI, outbox FAILED, consumer DLT, topic 사전 생성 주의사항 정리.
+- README/runbook 갱신.
+- 검증:
+  - `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.config.KafkaTopicConfigTest" --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 110개 PASS)
+  - `harness/feature_list.json` JSON parse OK
+  - `git diff --check` PASS
+
+## Changes Previous Session (Session 029)
 
 - PR #16 `Outbox DLQ와 Consumer 실패 정책 추가` merge 완료.
 - `FAILED` outbox 운영 조회/재처리 API 추가.

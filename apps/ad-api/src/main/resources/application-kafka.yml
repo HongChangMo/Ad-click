@@ -31,7 +31,15 @@ spring:
 adclick:
   kafka:
     topics:
+      auto-create-enabled: false
+      partitions: 3
+      replicas: 1
       click-events: ad-click-events
+      click-events-dlt: ad-click-events-dlt
+    consumer:
+      dlt:
+        retry-interval-ms: 1000
+        max-attempts: 3
     outbox:
       relay:
         enabled: true

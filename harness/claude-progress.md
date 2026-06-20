@@ -13,11 +13,50 @@
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
 | Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-20 완료 |
-| Current blocker | 없음 — FAILED outbox 재처리 API 완료 |
+| Current blocker | 없음 — Kafka consumer DLT/runbook 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 030 — 2026-06-20
+
+Kafka consumer DLT와 로컬/장애 점검 가이드
+
+**Merged**
+- PR #17 `FAILED Outbox 재처리 API 추가` merge 완료.
+
+**Implemented**
+- `KafkaConsumerDltConfig` 추가.
+- `DefaultErrorHandler + DeadLetterPublishingRecoverer`로 consumer-side DLT 구성.
+- `adclick.kafka.topics.click-events-dlt` 설정 추가.
+- `adclick.kafka.topics.auto-create-enabled` 조건부 topic 자동 생성 설정 추가.
+- 기본값은 false로 두어 Kafka 없는 테스트/컨텍스트에서 topic 생성 AdminClient 접근을 막는다.
+- `adclick.kafka.consumer.dlt.retry-interval-ms`, `max-attempts` 설정 추가.
+- `ClickEventAggregationConsumerDltIntegrationTest` 추가.
+  - Embedded Kafka에서 batch 처리 실패 후 DLT topic 발행 검증.
+- `KafkaTopicConfigTest` 추가.
+  - topic 자동 생성 bean이 property true에서만 생성되는지 검증.
+- `docs/operations/local-run-guide.md` 추가.
+- README/runbook에 Kafka UI, DLT topic, outbox FAILED, consumer DLT 점검 절차 반영.
+
+**Verification**
+- `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
+- `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.config.KafkaTopicConfigTest" --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
+- `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+- `./gradlew test` → BUILD SUCCESSFUL
+  전체 110개 PASS
+- `harness/feature_list.json` JSON parse OK
+- `git diff --check` PASS
+
+**Known issues / Follow-up**
+- 운영 Kafka에서 topic auto-create가 꺼져 있거나 애플리케이션에 topic 생성 권한이 없으면 `ad-click-events`, `ad-click-events-dlt`를 사전 생성해야 한다.
+- DLT 메시지 원 topic 재발행 API는 아직 없다. 현재는 Kafka UI/운영 도구 재발행 전제.
+
+**Next best action**
+PR 생성/머지.
 
 ---
 
