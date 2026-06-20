@@ -13,11 +13,59 @@
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
 | Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 완료 |
-| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats, valkey-fallback, reconciliation-batch 완성 |
+| Current blocker | 없음 — MVP 1 기능 완료, 로컬 bootRun 및 운영 문서 보강 진행 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 017 — 2026-06-20
+
+**Goal**
+MVP 1 운영성 보강 — 로컬 실행 가이드, API 예시, seed 데이터, 장애/보정 절차 문서화
+
+**Completed**
+- `README.md` 추가.
+  - Docker Compose 기반 로컬 실행 절차.
+  - schema/seed 적용 절차.
+  - 주요 API curl 예시.
+- `docker-compose.yml` 추가.
+  - MySQL 8.0.
+  - Redis 7.2 기반 Valkey 호환 캐시.
+- `docs/schema.sql` 추가.
+  - 현재 JPA 엔티티와 `ddl-auto=validate`에 맞는 로컬 스키마.
+- `docs/seed-mvp1.sql` 추가.
+  - 광고 50개 seed 데이터.
+  - ACTIVE 40개, PAUSED 5개, EXHAUSTED 5개.
+  - 저잔액 ACTIVE 광고 포함.
+- `docs/operations/mvp1-runbook.md` 추가.
+  - 정상 과금 플로우.
+  - 어뷰징 방어 정책.
+  - Valkey 장애 구간 reconciliation 운영 절차.
+
+**Verification run**
+```
+docker compose up -d → MySQL/Redis containers healthy
+docker compose exec -T mysql mysql -uadclick -padclick adclick < docs/schema.sql → 성공
+docker compose exec -T mysql mysql -uadclick -padclick adclick < docs/seed-mvp1.sql → 성공
+SELECT status, COUNT(*) FROM ads GROUP BY status → ACTIVE 40, PAUSED 5, EXHAUSTED 5
+./gradlew :apps:ad-api:bootRun → started on port 8080
+GET /api/v1/ads/1 → 200
+GET /api/v1/ads/1/balance → 200
+GET /api/v1/ads/next → 200
+POST /api/v1/ads/1/clicks → 200
+./gradlew test → BUILD SUCCESSFUL (test tasks up-to-date)
+```
+
+**Known issues / Lessons**
+- 로컬 HTTP 호출은 샌드박스에서 권한 확장이 필요했다.
+- `bootRun` 시 Spring Data Redis repository scan 안내 로그, MySQL dialect deprecation warning, open-in-view warning이 출력된다. 기능 실패는 아님.
+- schema migration 도구는 아직 없으므로 로컬 실행은 `docs/schema.sql` 수동 적용 방식이다.
+
+**Next best action**
+MVP 1 운영성 보강 PR 리뷰/머지.
 
 ---
 
