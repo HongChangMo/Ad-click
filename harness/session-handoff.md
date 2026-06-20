@@ -6,7 +6,7 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 016)
+## Last Updated: 2026-06-20 (Session 017)
 
 ---
 
@@ -39,10 +39,32 @@
 - `reconciliation-batch` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
+- Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
+- Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 016)
+## Changes This Session (Session 017)
+
+- MVP 1 운영성 보강 진행.
+- `README.md` 추가: 로컬 실행, 테스트, 주요 API curl 예시 정리.
+- `docker-compose.yml` 추가: MySQL 8.0 + Redis 7.2 기반 Valkey 호환 캐시 로컬 의존성 구성.
+- `docs/schema.sql` 추가: `ddl-auto=validate`용 로컬 MySQL 스키마.
+- `docs/seed-mvp1.sql` 추가: 로컬 검증용 광고 50개 seed 데이터.
+  - ACTIVE 40개, PAUSED 5개, EXHAUSTED 5개.
+  - 36-40번 ACTIVE 광고는 잔액 소진 검증용 저잔액 광고.
+- `docs/operations/mvp1-runbook.md` 추가: 정상 과금 플로우, 어뷰징 방어, Valkey 장애 보정 절차 정리.
+- Docker Compose 의존성 healthy 확인.
+- `docs/schema.sql`, `docs/seed-mvp1.sql`을 실제 MySQL에 적용해 검증.
+- `./gradlew :apps:ad-api:bootRun` 실제 기동 검증.
+- 로컬 HTTP smoke 검증:
+  - `GET /api/v1/ads/1`
+  - `GET /api/v1/ads/1/balance`
+  - `GET /api/v1/ads/next`
+  - `POST /api/v1/ads/1/clicks`
+- `./gradlew test` 재확인 결과 BUILD SUCCESSFUL (문서/SQL 변경만 있어 테스트 task는 up-to-date).
+
+## Changes Previous Session (Session 016)
 
 - PR #4 `클릭 과금 안정성 및 통계/보정 기능 구현` 머지 확인.
 - 로컬 `main`을 `origin/main`으로 fast-forward 동기화.
@@ -198,9 +220,12 @@ com.adclick.click/
 
 ## Still Broken or Unverified
 
-- `bootRun` 미검증 (로컬 DB/Valkey 연결 필요)
-- 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨
-- Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL
+- 인증/권한은 아직 없음.
+- 스키마 마이그레이션 도구는 아직 없음. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비.
+- reconciliation은 HTTP 수동 트리거 방식. 전용 batch runner는 MVP 2 후보.
+- Circuit breaker는 아직 없음. Valkey 예외는 코드 레벨 fail-open/fallback으로 처리.
+- 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
+- Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
 
 ---
 
@@ -213,7 +238,8 @@ com.adclick.click/
 ## Next Best Action
 
 **MVP 1 feature list 기준 priority 1-10 완료.**
-- 다음 작업은 사용자와 새 feature 또는 cleanup 범위를 확정한 뒤 진행.
+- MVP 1 운영성 문서 PR 리뷰/머지.
+- 이후 MVP 2 범위 정의 또는 첫 MVP 2 feature branch 시작.
 
 **건드리지 말아야 할 것**
 - 명시되지 않은 priority 11+ 후속 기능: outbox/retry 등 미적용

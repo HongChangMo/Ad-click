@@ -1,0 +1,35 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: adclick-mysql
+    environment:
+      MYSQL_DATABASE: adclick
+      MYSQL_USER: adclick
+      MYSQL_PASSWORD: adclick
+      MYSQL_ROOT_PASSWORD: root
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "adclick", "-padclick"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - adclick-mysql-data:/var/lib/mysql
+
+  valkey:
+    image: redis:7.2
+    container_name: adclick-valkey-compatible
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  adclick-mysql-data:

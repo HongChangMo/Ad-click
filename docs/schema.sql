@@ -1,0 +1,39 @@
+CREATE TABLE IF NOT EXISTS ads (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  advertiser_id BIGINT NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  status VARCHAR(255) NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ad_balances (
+  ad_id BIGINT NOT NULL,
+  balance DECIMAL(15, 2) NOT NULL,
+  updated_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (ad_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS balance_transactions (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  ad_id BIGINT NOT NULL,
+  amount DECIMAL(15, 2) NOT NULL,
+  type VARCHAR(255) NOT NULL,
+  created_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_balance_transactions_ad_id (ad_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS click_events (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  ad_id BIGINT NOT NULL,
+  ip_address VARCHAR(45) NOT NULL,
+  anonymous_id VARCHAR(64),
+  clicked_at DATETIME(6) NOT NULL,
+  is_valid BIT NOT NULL,
+  invalid_reason VARCHAR(30),
+  PRIMARY KEY (id),
+  INDEX idx_click_abuse (ad_id, ip_address, clicked_at),
+  INDEX idx_click_stats (ad_id, clicked_at, is_valid)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
