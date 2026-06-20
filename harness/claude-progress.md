@@ -12,12 +12,81 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-14 완료 |
-| Current blocker | 없음 — Kafka 클릭 이벤트 발행/소비 기반 구현 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-16 완료 |
+| Current blocker | 없음 — Kafka 통합 테스트와 기술 책임 문서까지 추가 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 023 — 2026-06-20
+
+**Goal**
+Kafka 통합 테스트 추가 및 기술별 책임 문서화
+
+**Completed**
+- `docs/architecture/technology-responsibilities.md` 추가.
+  - Spring Boot API, MySQL, Valkey, Kafka, Kafka consumer idempotency, 보장 수준, 테스트 전략 정리.
+- README 운영 문서 목록에 기술 책임 문서 링크 추가.
+- `ClickEventAggregationKafkaIntegrationTest` 추가.
+  - Embedded Kafka와 MySQL Testcontainer 조합.
+  - 중복 `clickEventId` 메시지가 한 번만 집계되는지 검증.
+  - valid/invalid 클릭이 `click_daily_stats`에 분리 집계되는지 검증.
+- `ad-aggregation`에 `spring-boot-starter-json` 의존성 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 96개 PASS
+```
+
+**Known issues / Lessons**
+- Embedded Kafka 종료 로그는 다소 길지만 테스트 실패는 아니다.
+- 통합 테스트 producer는 JavaTime 직렬화를 위해 테스트 전용 ObjectMapper를 명시한다.
+
+**Next best action**
+전체 테스트 재검증 후 PR #11에 추가 커밋 push. 이후 PR 리뷰/머지.
+
+---
+
+### Session 022 — 2026-06-20
+
+**Goal**
+MVP 2 priority 15 — Kafka 클릭 이벤트 Outbox 발행 및 재시도
+
+**Completed**
+- PR #10 `Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer 추가` squash merge 완료.
+- 클릭 이벤트 Kafka 발행 경로를 afterCommit direct publish에서 outbox relay 방식으로 변경.
+- `click_event_outbox` 테이블/엔티티/Repository 추가.
+- `OutboxClickEventPublisher` 추가.
+  - 클릭 저장 트랜잭션 안에서 `ClickEventMessage` payload를 PENDING row로 저장.
+- `ClickEventOutboxRelay` 추가.
+  - PENDING row를 Kafka로 발행.
+  - 성공 시 PUBLISHED 전환.
+  - 실패 시 PENDING 유지, `attempt_count` 증가, `last_error` 기록.
+- `KafkaClickEventPublisher`는 Kafka send adapter로 책임 축소.
+- `application.yml`에 `adclick.kafka.outbox.relay.*` 설정 추가.
+- ad-api 통합 테스트에서는 Kafka listener와 outbox relay를 비활성화해 외부 Kafka 없이 안정적으로 종료되도록 조정.
+- README/runbook/schema/harness 갱신.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 95개 PASS (test tasks up-to-date)
+```
+
+**Known issues / Lessons**
+- relay는 at-least-once 성격이다. Kafka send 성공 후 DB PUBLISHED 반영 전에 프로세스가 죽으면 재발행될 수 있다.
+- 집계 consumer의 `processed_click_events.click_event_id` idempotency key가 중복 집계를 막는다.
+- 현재 relay는 단일 인스턴스 단순 polling 기준이다. 다중 인스턴스 병렬 처리에는 DB lock/claim 전략 보강이 필요하다.
+
+**Next best action**
+Kafka 통합 테스트, 관리자 통계 API, outbox relay 병렬 처리/lock 보강 중 선택.
 
 ---
 
@@ -59,12 +128,12 @@ MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer �
 
 **Known issues / Lessons**
 - Kafka가 없는 테스트 환경에서 producer 메타데이터 대기를 줄이기 위해 `max.block.ms=100` 적용.
-- Kafka publish는 afterCommit direct publish 방식이므로 outbox 보장은 아직 없다.
+- Kafka foundation 초기 구현은 afterCommit direct publish였고, Session 022에서 outbox relay로 보강했다.
 - Consumer는 DB idempotency로 중복 집계 반영을 방지한다.
 - Kafka UI는 로컬 compose 편의 기능이다.
 
 **Next best action**
-Kafka foundation PR 리뷰/머지. 이후 outbox/retry, 관리자 통계 API, Kafka 통합 테스트 중 선택.
+Kafka 통합 테스트, 관리자 통계 API, outbox relay 병렬 처리/lock 보강 중 선택.
 
 ---
 

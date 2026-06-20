@@ -43,12 +43,14 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 
 ## Kafka 클릭 이벤트
 
-클릭 이벤트는 DB 저장 트랜잭션 commit 이후 Kafka topic으로 발행한다.
+클릭 이벤트는 DB 저장 트랜잭션 안에서 outbox row로 함께 저장하고, outbox relay가 Kafka topic으로 발행한다.
 
 - topic: `ad-click-events`
 - producer module: `ad-click`
 - consumer module: `ad-aggregation`
-- Kafka publish 실패는 클릭 요청을 실패시키지 않고 fail-open 처리한다.
+- outbox table: `click_event_outbox`
+- Kafka publish 실패는 outbox row를 `PENDING`으로 유지하고 `attempt_count`, `last_error`를 갱신한다.
+- relay 재시도 때문에 Kafka 이벤트는 중복 발행될 수 있으며, consumer idempotency가 최종 집계 중복 반영을 막는다.
 - producer는 idempotence를 켠다: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`.
 - consumer는 manual ack를 사용하고, DB 처리 성공 후 offset을 acknowledge한다.
 - consumer는 `processed_click_events.click_event_id`를 idempotency key로 사용한다.

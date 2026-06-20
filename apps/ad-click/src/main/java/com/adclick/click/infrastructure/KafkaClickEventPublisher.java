@@ -1,18 +1,15 @@
 package com.adclick.click.infrastructure;
 
-import com.adclick.click.domain.ClickEvent;
-import com.adclick.click.domain.ClickEventPublisher;
 import com.adclick.click.infrastructure.message.ClickEventMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Component;
 
-@Component
-public class KafkaClickEventPublisher implements ClickEventPublisher {
+import java.util.concurrent.CompletableFuture;
 
-    private static final Logger log = LoggerFactory.getLogger(KafkaClickEventPublisher.class);
+@Component
+public class KafkaClickEventPublisher {
 
     private final KafkaTemplate<String, ClickEventMessage> kafkaTemplate;
     private final String topic;
@@ -24,17 +21,14 @@ public class KafkaClickEventPublisher implements ClickEventPublisher {
         this.topic = topic;
     }
 
-    @Override
-    public void publish(ClickEvent event) {
-        try {
-            kafkaTemplate.send(topic, event.getAdId().toString(), ClickEventMessage.from(event))
-                    .whenComplete((result, ex) -> {
-                        if (ex != null) {
-                            log.warn("click event kafka publish failed. clickEventId={}", event.getId(), ex);
-                        }
-                    });
-        } catch (RuntimeException e) {
-            log.warn("click event kafka publish skipped. clickEventId={}", event.getId(), e);
-        }
+    public CompletableFuture<SendResult<String, ClickEventMessage>> publish(ClickEventMessage message) {
+        return publish(topic, message.adId().toString(), message);
+    }
+
+    public CompletableFuture<SendResult<String, ClickEventMessage>> publish(
+            String topic,
+            String messageKey,
+            ClickEventMessage message) {
+        return kafkaTemplate.send(topic, messageKey, message);
     }
 }

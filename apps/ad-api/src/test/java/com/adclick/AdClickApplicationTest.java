@@ -28,6 +28,8 @@ class AdClickApplicationTest {
         registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
         registry.add("spring.data.redis.host", redis::getHost);
         registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
+        registry.add("spring.kafka.listener.auto-startup", () -> false);
+        registry.add("adclick.kafka.outbox.relay.enabled", () -> false);
     }
 
     @Test

@@ -101,8 +101,11 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 Kafka topic:
 
 - `ad-click-events`: 클릭 이벤트 발행 topic
+- `click_event_outbox`: 클릭 저장 트랜잭션과 함께 저장되는 Kafka 발행 예정 이벤트
 - `processed_click_events`: consumer idempotency table
 - `click_daily_stats`: Kafka consumer가 업데이트하는 일별 집계 projection
+- outbox relay는 기본 활성화되어 있으며 `adclick.kafka.outbox.relay.fixed-delay-ms`와
+  `adclick.kafka.outbox.relay.publish-timeout-ms`로 주기와 발행 대기 시간을 조정한다.
 
 Kafka UI:
 
@@ -111,6 +114,7 @@ Kafka UI:
 
 ## 운영 문서
 
+- [기술별 책임과 보장 범위](docs/architecture/technology-responsibilities.md)
 - [MVP 1 운영 절차](docs/operations/mvp1-runbook.md)
 - [로컬 스키마](docs/schema.sql)
 - [MVP 1 seed 데이터](docs/seed-mvp1.sql)
