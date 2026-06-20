@@ -126,10 +126,13 @@ ad-click -> ad-management
    counts filtered by optional `from` / `to` ISO date-time query params.
 8. When Valkey is unavailable, click requests fail open and ad rotation falls
    back to DB random ACTIVE selection.
+9. Reconciliation can invalidate duplicate valid clicks in a failure window and
+   refund 50 won per duplicate click with a `REFUND` balance transaction.
 
 Current known scope boundaries:
 
-- `reconciliation-batch` priority 10 is not implemented yet.
+- MVP 1 feature list priorities 1-10 are implemented.
+- No priority 11+ feature is defined in `harness/feature_list.json` yet.
 
 Do not silently implement later-priority behavior while working on an earlier
 feature unless the user explicitly expands the scope.
@@ -169,7 +172,7 @@ interfaces -> application -> domain <- infrastructure
 As of the latest handoff, the highest-priority unfinished feature is:
 
 ```text
-reconciliation-batch (priority 10)
+none in harness/feature_list.json
 ```
 
-Start there unless the user gives a newer instruction.
+Ask the user before starting a new feature beyond the current MVP 1 ledger.

@@ -69,6 +69,11 @@ public class ClickEvent {
         return e;
     }
 
+    public void markInvalid(InvalidClickReason reason) {
+        this.isValid = false;
+        this.invalidReason = reason.name();
+    }
+
     public Long getId() { return id; }
     public Long getAdId() { return adId; }
     public String getIpAddress() { return ipAddress; }

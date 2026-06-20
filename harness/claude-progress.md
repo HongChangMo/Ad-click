@@ -12,12 +12,63 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `reconciliation-batch` (priority 10) — Valkey 장애 구간 중복 클릭 사후 보정 |
-| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats, valkey-fallback 완성 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 완료 |
+| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats, valkey-fallback, reconciliation-batch 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 014 — 2026-06-20
+
+**Goal**
+reconciliation-batch (priority 10) — Valkey 장애 구간 중복 클릭 사후 탐지/환불
+
+**Completed**
+- `BalanceFacade.refund(adId, amount)` 추가.
+  - 잔액 증가.
+  - `balance_transactions`에 `TransactionType.REFUND` 기록.
+- `ClickReconciliationFacade` 추가.
+  - 지정한 `from`/`to` 구간의 valid click events 조회.
+  - 동일 `adId + ipAddress` 그룹에서 첫 클릭은 유지하고 이후 클릭을 `DUPLICATE_IP`로 무효화.
+  - 무효화된 클릭 1건당 50원 환불.
+- `POST /api/v1/clicks/reconciliation` API 추가.
+- `ClickEvent.markInvalid(...)`, reconciliation scan용 repository 메서드 추가.
+- Valkey unavailable E2E에서 fail-open으로 중복 유효 클릭이 생긴 뒤 reconciliation으로 무효화/환불되는 흐름 검증.
+
+**Verification run**
+```
+./gradlew :apps:ad-management:test :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiValkeyFallbackE2ETest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 14 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 8 PASSED
+  - ClickReconciliationFacadeTest: 2 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 5 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - ValKeyAbuseGuardAdapterTest: 3 PASSED
+  - AdApiE2ETest: 19 PASSED
+  - AdApiValkeyFallbackE2ETest: 3 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 74개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: reconciliation-batch status → done
+
+**Known issues / Lessons**
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- 현재 reconciliation은 API-triggered use case이며, 2단계에서는 Kafka Consumer/전용 batch runner로 대체 가능.
+
+**Next best action**
+MVP 1 feature list 기준 priority 1-10 완료. 다음 작업은 사용자와 새 feature/cleanup 범위 확정 필요.
 
 ---
 

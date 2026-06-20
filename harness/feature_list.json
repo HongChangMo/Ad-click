@@ -147,13 +147,13 @@
       "area": "ad-click",
       "title": "사후 보정 배치 (Valkey 장애 구간 중복 클릭 환불)",
       "user_visible_behavior": "Valkey 장애 구간에 발생한 중복 클릭을 탐지하여 is_valid=false로 재분류하고 광고주 잔액을 환불한다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "장애 구간 시작/종료 시각을 입력받아 해당 구간의 click_events에서 중복 클릭(동일 IP + adId)을 탐지하는지 확인한다.",
         "탐지된 중복 클릭에 대해 잔액 환불 및 balance_transactions REFUND 이력이 기록되는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "idx_click_abuse (ad_id, ip_address, clicked_at) 인덱스 활용. 2단계에서 Kafka Consumer로 대체 예정"
+      "evidence": "BalanceFacadeTest: 14개 유닛 PASS (refund balance + REFUND transaction 추가). ClickReconciliationFacadeTest: 2개 유닛 PASS (adId+ip 중복 탐지/환불 검증). ClickEventJpaRepositoryTest: 5개 통합 PASS (valid events ordered scan 추가). AdApiValkeyFallbackE2ETest: reconciliation_invalidates_duplicate_clicks_and_refunds_balance_after_valkey_outage PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 74개 테스트 PASS. (2026-06-20)",
+      "notes": "POST /api/v1/clicks/reconciliation 구현 완료. from/to 구간의 유효 클릭을 clicked_at 순서로 스캔하고 동일 adId+ipAddress 그룹에서 첫 클릭 이후 중복 클릭을 DUPLICATE_IP로 무효화한다. 중복 1건당 50원을 BalanceFacade.refund()로 환불하고 balance_transactions REFUND 이력을 기록한다. 2단계에서 Kafka Consumer/전용 batch runner로 대체 가능."
     }
   ]
 }

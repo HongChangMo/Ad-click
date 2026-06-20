@@ -64,6 +64,19 @@ public class BalanceFacade {
         transactionRepository.save(BalanceTransaction.of(adId, amount, type));
     }
 
+    @Transactional
+    public BalanceInfo refund(Long adId, BigDecimal amount) {
+        adRepository.findById(adId)
+                .orElseThrow(() -> new AdNotFoundException(adId));
+
+        AdBalance balance = adBalanceRepository.findByAdIdForUpdate(adId)
+                .orElseGet(() -> AdBalance.of(adId));
+        balance.add(amount);
+        adBalanceRepository.save(balance);
+        transactionRepository.save(BalanceTransaction.of(adId, amount, TransactionType.REFUND));
+        return BalanceInfo.from(balance);
+    }
+
     private void exhaustAdIfBalanceIsZero(Long adId, AdBalance balance) {
         if (balance.getBalance().compareTo(BigDecimal.ZERO) != 0) {
             return;

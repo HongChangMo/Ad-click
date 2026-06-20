@@ -96,4 +96,26 @@ class ClickEventJpaRepositoryTest {
         assertThat(validCount).isEqualTo(2);
         assertThat(invalidCount).isEqualTo(1);
     }
+
+    @Test
+    void find_valid_events_between_orders_for_reconciliation_scan() {
+        LocalDateTime base = LocalDateTime.of(2026, 6, 20, 12, 0);
+        ClickEvent outside = clickEventJpaRepository.save(
+                ClickEvent.validAt(1L, "10.0.0.1", "outside", base.minusMinutes(1)));
+        ClickEvent laterSameIp = clickEventJpaRepository.save(
+                ClickEvent.validAt(1L, "10.0.0.1", "later", base.plusMinutes(2)));
+        ClickEvent firstSameIp = clickEventJpaRepository.save(
+                ClickEvent.validAt(1L, "10.0.0.1", "first", base.plusMinutes(1)));
+        ClickEvent invalid = clickEventJpaRepository.save(ClickEvent.invalidAt(
+                1L, "10.0.0.2", "invalid", InvalidClickReason.DUPLICATE_IP, base.plusMinutes(3)));
+        ClickEvent otherAd = clickEventJpaRepository.save(
+                ClickEvent.validAt(2L, "10.0.0.1", "other-ad", base.plusMinutes(1)));
+
+        var result = clickEventJpaRepository
+                .findByIsValidTrueAndClickedAtBetweenOrderByAdIdAscIpAddressAscClickedAtAscIdAsc(
+                        base, base.plusHours(1));
+
+        assertThat(result).containsExactly(firstSameIp, laterSameIp, otherAd);
+        assertThat(result).doesNotContain(outside, invalid);
+    }
 }

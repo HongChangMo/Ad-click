@@ -6,24 +6,25 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 013)
+## Last Updated: 2026-06-20 (Session 014)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 68개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 74개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
-  - `BalanceFacadeTest` (12) — Unit
+  - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
   - `ClickFacadeTest` (8) — Unit
+  - `ClickReconciliationFacadeTest` (2) — Unit
   - `AdJpaRepositoryTest` (1) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
-  - `ClickEventJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
+  - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
   - `ValKeyRotationAdapterTest` (5) — Integration (Redis:7.2 Testcontainer)
   - `ValKeyAbuseGuardAdapterTest` (3) — Integration (Redis:7.2 Testcontainer)
   - `AdApiE2ETest` (19) — E2E (MySQL + Redis Testcontainer)
-  - `AdApiValkeyFallbackE2ETest` (2) — E2E (MySQL Testcontainer + unavailable Redis)
+  - `AdApiValkeyFallbackE2ETest` (3) — E2E (MySQL Testcontainer + unavailable Redis)
   - `AdClickApplicationTest` (1) — Context load
   - `DependencyDirectionTest` (1) — 의존 방향 단방향 확인
 - `ad-crud` feature: **done**
@@ -35,11 +36,24 @@
 - `abuse-guard` feature: **done**
 - `click-stats` feature: **done**
 - `valkey-fallback` feature: **done**
+- `reconciliation-batch` feature: **done**
+- MVP 1 feature list priority 1-10: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 
 ---
 
-## Changes This Session (Session 013)
+## Changes This Session (Session 014)
+
+- `reconciliation-batch` (priority 10) 구현 완료.
+  - `BalanceFacade.refund(adId, amount)` 추가: 잔액 증가 + `REFUND` 거래 이력 기록.
+  - `ClickReconciliationFacade` 추가: 장애 구간 valid click scan, 동일 `adId + ipAddress` 중복 탐지.
+  - 중복 클릭은 `ClickEvent.markInvalid(DUPLICATE_IP)`로 무효화.
+  - 중복 1건당 50원 환불.
+  - `POST /api/v1/clicks/reconciliation` API 추가.
+  - `ClickEventJpaRepository`에 reconciliation scan 쿼리 추가.
+  - `AdApiValkeyFallbackE2ETest`에 fail-open 중복 클릭 → reconciliation 환불 E2E 추가.
+
+## Changes Previous Session (Session 013)
 
 - `valkey-fallback` (priority 9) 검증 완료.
   - `AdApiValkeyFallbackE2ETest` 추가.
@@ -151,10 +165,12 @@ com.adclick.management/
 com.adclick.click/
   interfaces/api/
     ClickController.java  ← POST /api/v1/ads/{adId}/clicks
+    ClickReconciliationController.java
     ClickRateLimiter.java
+    dto/: ReconciliationRequest.java
   application/
-    ClickFacade.java
-    info/: ClickInfo.java, ClickStatsInfo.java
+    ClickFacade.java, ClickReconciliationFacade.java
+    info/: ClickInfo.java, ClickStatsInfo.java, ReconciliationInfo.java
   domain/
     AbuseGuardPort.java, ClickEvent.java, ClickEventRepository.java, InvalidClickReason.java
   infrastructure/
@@ -184,13 +200,11 @@ com.adclick.click/
 
 ## Next Best Action
 
-**`reconciliation-batch` (priority 10) 구현:**
-- Valkey 장애 구간 중복 클릭 사후 탐지
-- 중복 클릭 무효화/환불 정책 반영
-- 장애 구간 시작/종료 시각 기반 batch/use case 설계
+**MVP 1 feature list 기준 priority 1-10 완료.**
+- 다음 작업은 사용자와 새 feature 또는 cleanup 범위를 확정한 뒤 진행.
 
 **건드리지 말아야 할 것**
-- priority 11+ 후속 기능: outbox/retry 등 미적용
+- 명시되지 않은 priority 11+ 후속 기능: outbox/retry 등 미적용
 
 ---
 

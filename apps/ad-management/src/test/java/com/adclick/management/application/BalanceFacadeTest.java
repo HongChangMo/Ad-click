@@ -189,4 +189,36 @@ class BalanceFacadeTest {
         verify(adBalanceRepository, never()).save(any());
         verify(transactionRepository, never()).save(any());
     }
+
+    @Test
+    void refund_adds_balance_and_records_refund_transaction() {
+        Ad ad = Ad.of(1L, "Refund Ad");
+        AdBalance balance = AdBalance.of(1L);
+        balance.add(BigDecimal.valueOf(100));
+        given(adRepository.findById(1L)).willReturn(Optional.of(ad));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.of(balance));
+        given(adBalanceRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(transactionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        BalanceInfo result = balanceFacade.refund(1L, BigDecimal.valueOf(50));
+
+        assertThat(result.balance()).isEqualByComparingTo(BigDecimal.valueOf(150));
+        verify(transactionRepository).save(argThat(t ->
+                t.getType() == TransactionType.REFUND
+                        && t.getAmount().compareTo(BigDecimal.valueOf(50)) == 0));
+    }
+
+    @Test
+    void refund_creates_balance_when_row_does_not_exist() {
+        Ad ad = Ad.of(1L, "Refund New Balance Ad");
+        given(adRepository.findById(1L)).willReturn(Optional.of(ad));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.empty());
+        given(adBalanceRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(transactionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        BalanceInfo result = balanceFacade.refund(1L, BigDecimal.valueOf(50));
+
+        assertThat(result.balance()).isEqualByComparingTo(BigDecimal.valueOf(50));
+        verify(transactionRepository).save(argThat(t -> t.getType() == TransactionType.REFUND));
+    }
 }
