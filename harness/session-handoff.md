@@ -6,7 +6,7 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 023)
+## Last Updated: 2026-06-20 (Session 024)
 
 ---
 
@@ -56,6 +56,7 @@
 - `kafka-click-aggregation-foundation` feature: **done**
 - `kafka-click-outbox-relay` feature: **done**
 - `kafka-click-aggregation-integration-test` feature: **done**
+- `technology-responsibility-local-doc-ignore` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -63,13 +64,22 @@
 - MVP 2 feature list priority 14: **done**
 - MVP 2 feature list priority 15: **done**
 - MVP 2 feature list priority 16: **done**
+- MVP 2 feature list priority 17: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 023)
+## Changes This Session (Session 024)
+
+- PR #11 `Kafka 클릭 이벤트 Outbox relay 추가` squash merge 완료.
+- `docs/architecture/technology-responsibilities.md`를 Git 추적에서 제거하고 로컬 전용 문서로 전환.
+- `.gitignore`에 `docs/architecture/technology-responsibilities.md` 추가.
+- README에서 해당 문서 링크 제거.
+- README의 전체 테스트 수치를 현재 기준 96개로 갱신.
+
+## Changes Previous Session (Session 023)
 
 - 개발자 설명용 문서 `docs/architecture/technology-responsibilities.md` 추가.
   - Spring Boot API, MySQL, Valkey, Kafka, Kafka consumer idempotency, 보장 수준, 테스트 전략 정리.
