@@ -139,7 +139,7 @@
         "Valkey 장애 중 GET /api/v1/ads/next 가 DB에서 ACTIVE 광고를 반환하는지 확인한다."
       ],
       "evidence": "AdRotationFacadeTest: getNextAd_falls_back_to_db_random_on_valkey_exception PASS. AdApiValkeyFallbackE2ETest: click_succeeds_when_valkey_is_unavailable, getNextAd_falls_back_to_db_when_valkey_is_unavailable PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 68개 테스트 PASS. (2026-06-20)",
-      "notes": "1단계 Fail Open 완료. ClickRateLimiter와 ValKeyAbuseGuardAdapter는 Valkey RuntimeException 발생 시 요청을 허용한다. AdRotationFacade는 queuePort 장애 시 DB random ACTIVE fallback으로 전환한다. Circuit Breaker (Resilience4j) + DB Fallback 어뷰징 체크는 미래 확장."
+      "notes": "1단계 Fail Open 완료. ClickRateLimiter와 ValKeyAbuseGuardAdapter는 Valkey RuntimeException 발생 시 요청을 허용한다. AdRotationFacade는 queuePort 장애 시 DB random ACTIVE fallback으로 전환한다. Resilience4j circuit breaker는 valkey-circuit-breaker(priority 11)에서 추가."
     },
     {
       "id": "reconciliation-batch",
@@ -154,6 +154,23 @@
       ],
       "evidence": "BalanceFacadeTest: 14개 유닛 PASS (refund balance + REFUND transaction 추가). ClickReconciliationFacadeTest: 2개 유닛 PASS (adId+ip 중복 탐지/환불 검증). ClickEventJpaRepositoryTest: 5개 통합 PASS (valid events ordered scan 추가). AdApiValkeyFallbackE2ETest: reconciliation_invalidates_duplicate_clicks_and_refunds_balance_after_valkey_outage PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 74개 테스트 PASS. (2026-06-20)",
       "notes": "POST /api/v1/clicks/reconciliation 구현 완료. from/to 구간의 유효 클릭을 clicked_at 순서로 스캔하고 동일 adId+ipAddress 그룹에서 첫 클릭 이후 중복 클릭을 DUPLICATE_IP로 무효화한다. 중복 1건당 50원을 BalanceFacade.refund()로 환불하고 balance_transactions REFUND 이력을 기록한다. 2단계에서 Kafka Consumer/전용 batch runner로 대체 가능."
+    },
+    {
+      "id": "valkey-circuit-breaker",
+      "priority": 11,
+      "area": "ad-management + ad-click",
+      "title": "Valkey 경로 Resilience4j Retry + Circuit Breaker 도입",
+      "user_visible_behavior": "Valkey 일시 장애는 짧은 지수 백오프로 재시도하고, 장애가 반복되면 circuit breaker가 Redis 호출을 잠시 차단한 뒤 기존 fail-open/DB fallback 경로를 사용한다.",
+      "status": "done",
+      "verification": [
+        "Round Robin queue poll 실패가 반복되면 지수 백오프로 짧게 재시도하고, Optional.empty fallback을 반환하며 circuit open 이후 Redis 호출을 멈추는지 확인한다.",
+        "Rebuild lock 실패 시 false fallback을 반환하는지 확인한다.",
+        "어뷰징 체크 실패가 반복되면 Optional.empty fail-open을 반환하고 circuit open 이후 Redis 호출을 멈추는지 확인한다.",
+        "Rate limiter 실패가 반복되면 true fail-open을 반환하고 circuit open 이후 Redis 호출을 멈추는지 확인한다.",
+        "기존 Valkey fallback E2E가 계속 통과하는지 확인한다."
+      ],
+      "evidence": "ValKeyRotationAdapterCircuitBreakerTest: 2개 유닛 PASS. ValKeyAbuseGuardAdapterCircuitBreakerTest: 1개 유닛 PASS. ClickRateLimiterTest: 1개 유닛 PASS. AdApiValkeyFallbackE2ETest: 3개 E2E PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 81개 테스트 PASS. (2026-06-20)",
+      "notes": "Resilience4j resilience4j-retry 2.3.0 + resilience4j-circuitbreaker 2.3.0 사용. Valkey rotation/abuse/rate-limit 경로를 programmatic Retry + CircuitBreaker로 감쌌다. 기본 retry 설정은 maxAttempts=2, initialInterval=50ms, multiplier=2.0, maxInterval=200ms. 기본 circuit breaker 설정은 failureRateThreshold=50, slidingWindowSize=5, minimumNumberOfCalls=5, waitDurationInOpenState=10000ms, permittedHalfOpenCalls=2. Actuator/metrics 노출은 후속 운영성 작업 후보."
     }
   ]
 }

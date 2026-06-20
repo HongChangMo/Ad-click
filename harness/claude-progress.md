@@ -12,12 +12,59 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 완료 |
-| Current blocker | 없음 — MVP 1 기능 완료, 로컬 bootRun 및 운영 문서 보강 진행 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11 완료 |
+| Current blocker | 없음 — Valkey Retry + Circuit Breaker 구현 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 018 — 2026-06-20
+
+**Goal**
+MVP 2 priority 11 — Valkey 경로 Resilience4j Retry + Circuit Breaker 도입
+
+**Completed**
+- PR #6 `MVP 1 로컬 실행 및 운영 문서 보강` 머지 확인.
+- `ad-management`, `ad-click`에 Resilience4j `retry`, `circuitbreaker` 의존성 추가.
+- Valkey rotation queue 경로 보호:
+  - `offer`, `remove`, `poll`, `tryRebuildLock`, `releaseRebuildLock`.
+  - 장애/OPEN 시 기존 DB fallback 경로 유지.
+- Valkey abuse guard 경로 보호:
+  - 장애/OPEN 시 기존 fail-open 유지.
+- Click rate limiter 경로 보호:
+  - 장애/OPEN 시 기존 fail-open 유지.
+- Valkey retry 기본값 추가:
+  - `maxAttempts=2`
+  - `initialInterval=50ms`
+  - `multiplier=2.0`
+  - `maxInterval=200ms`
+- Valkey circuit breaker 기본값 추가:
+  - `failureRateThreshold=50`
+  - `slidingWindowSize=5`
+  - `minimumNumberOfCalls=5`
+  - `waitDurationInOpenState=10000ms`
+  - `permittedHalfOpenCalls=2`
+- `managementValkeyCircuitBreaker`, `clickValkeyCircuitBreaker` bean name 명시로 ad-api 통합 context 충돌 해결.
+- runbook에 Retry + Circuit Breaker 운영 설명 반영.
+
+**Verification run**
+```
+./gradlew :apps:ad-management:test :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 81개 PASS
+```
+
+**Known issues / Lessons**
+- Retry는 circuit breaker 안쪽에서 먼저 수행되고, 최종 실패가 circuit breaker에 기록된다.
+- 기본 retry는 클릭 요청 지연을 제한하기 위해 최대 2회, 50ms 시작, 최대 200ms로 제한했다.
+- Actuator/Prometheus metric 노출은 아직 없다.
+
+**Next best action**
+Valkey Retry + Circuit Breaker PR 리뷰/머지. 이후 MVP 2 다음 후보 선택.
 
 ---
 

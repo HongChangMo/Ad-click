@@ -6,18 +6,21 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 017)
+## Last Updated: 2026-06-20 (Session 018)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 77개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 81개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
   - `ClickFacadeTest` (8) — Unit
   - `ClickReconciliationFacadeTest` (2) — Unit
+  - `ValKeyRotationAdapterCircuitBreakerTest` (2) — Unit
+  - `ValKeyAbuseGuardAdapterCircuitBreakerTest` (1) — Unit
+  - `ClickRateLimiterTest` (1) — Unit
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
@@ -37,14 +40,43 @@
 - `click-stats` feature: **done**
 - `valkey-fallback` feature: **done**
 - `reconciliation-batch` feature: **done**
+- `valkey-circuit-breaker` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
+- MVP 2 feature list priority 11: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 017)
+## Changes This Session (Session 018)
+
+- PR #6 `MVP 1 로컬 실행 및 운영 문서 보강` 머지 확인.
+- MVP 2 첫 작업 `valkey-circuit-breaker` (priority 11) 구현 완료.
+- Resilience4j `resilience4j-retry:2.3.0`, `resilience4j-circuitbreaker:2.3.0` 의존성을 `ad-management`, `ad-click` 모듈에 추가.
+- Valkey 호출에 짧은 지수 백오프 retry 적용.
+  - 기본 `maxAttempts=2`, `initialInterval=50ms`, `multiplier=2.0`, `maxInterval=200ms`.
+- Valkey Round Robin queue 경로에 circuit breaker 적용.
+  - `offer`, `remove`, `poll`, `tryRebuildLock`, `releaseRebuildLock` 보호.
+  - `poll` 장애/OPEN 시 `Optional.empty()` fallback.
+  - `tryRebuildLock` 장애/OPEN 시 `false` fallback.
+- Valkey abuse guard 경로에 circuit breaker 적용.
+  - 장애/OPEN 시 기존 fail-open 정책대로 `Optional.empty()` 반환.
+- 클릭 rate limiter 경로에 circuit breaker 적용.
+  - 장애/OPEN 시 기존 fail-open 정책대로 `true` 반환.
+- `application.yml`에 circuit breaker 기본 설정 명시.
+- `docs/operations/mvp1-runbook.md`의 circuit breaker 상태 설명 갱신.
+- bean name 충돌 해결: `managementValkeyCircuitBreaker`, `clickValkeyCircuitBreaker`로 명시.
+- 추가 테스트:
+  - `ValKeyRotationAdapterCircuitBreakerTest` (2)
+  - `ValKeyAbuseGuardAdapterCircuitBreakerTest` (1)
+  - `ClickRateLimiterTest` (1)
+- 검증:
+  - `./gradlew :apps:ad-management:test :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 81개 PASS)
+
+## Changes Previous Session (Session 017)
 
 - MVP 1 운영성 보강 진행.
 - `README.md` 추가: 로컬 실행, 테스트, 주요 API curl 예시 정리.
@@ -223,7 +255,7 @@ com.adclick.click/
 - 인증/권한은 아직 없음.
 - 스키마 마이그레이션 도구는 아직 없음. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비.
 - reconciliation은 HTTP 수동 트리거 방식. 전용 batch runner는 MVP 2 후보.
-- Circuit breaker는 아직 없음. Valkey 예외는 코드 레벨 fail-open/fallback으로 처리.
+- Resilience4j는 programmatic Retry + CircuitBreaker만 도입됨. Spring Boot Actuator/Prometheus metric 노출은 후속 운영성 후보.
 - 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
 - Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
 
@@ -238,11 +270,12 @@ com.adclick.click/
 ## Next Best Action
 
 **MVP 1 feature list 기준 priority 1-10 완료.**
-- MVP 1 운영성 문서 PR 리뷰/머지.
-- 이후 MVP 2 범위 정의 또는 첫 MVP 2 feature branch 시작.
+**MVP 2 priority 11 완료.**
+- Valkey circuit breaker PR 리뷰/머지.
+- 이후 MVP 2 다음 후보 선택: reconciliation batch runner 분리, outbox/retry, 관리자 통계/모니터링 API 중 택1.
 
 **건드리지 말아야 할 것**
-- 명시되지 않은 priority 11+ 후속 기능: outbox/retry 등 미적용
+- 명시되지 않은 priority 12+ 후속 기능: outbox/retry 등 미적용
 
 ---
 
