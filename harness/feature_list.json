@@ -286,6 +286,24 @@
       ],
       "evidence": "./gradlew :apps:ad-api:test BUILD SUCCESSFUL. README/runbook에 Kafka 설정 파일 위치 반영. (2026-06-20)",
       "notes": "apps/ad-api/src/main/resources/application-kafka.yml 추가. application.yml에는 spring.config.import=classpath:application-kafka.yml만 남긴다."
+    },
+    {
+      "id": "kafka-batch-outbox-and-consumer",
+      "priority": 19,
+      "area": "ad-click + ad-aggregation",
+      "title": "Kafka Outbox 발행 및 Consumer 배치 처리",
+      "user_visible_behavior": "Outbox relay가 Kafka 이벤트를 배치 단위로 발행하고, 집계 consumer가 Kafka batch listener로 메시지를 일괄 처리한다.",
+      "status": "done",
+      "verification": [
+        "outbox relay가 설정된 batch-size로 PENDING row를 조회하는지 확인한다.",
+        "outbox relay가 조회한 row를 PROCESSING으로 표시한 뒤 Kafka send를 일괄 요청하는지 확인한다.",
+        "Kafka 발행 성공 row는 PUBLISHED로 전환되고 실패 row는 PENDING으로 되돌아가 retry 가능한지 확인한다.",
+        "Kafka consumer가 List<ClickEventMessage> batch를 받아 aggregateAll로 처리하고 manual ack 하는지 확인한다.",
+        "Embedded Kafka 통합 테스트가 batch listener 전환 후에도 중복 clickEventId를 한 번만 집계하는지 확인한다.",
+        "ad-api context가 batch Kafka 설정을 정상 로딩하는지 확인한다."
+      ],
+      "evidence": "./gradlew :apps:ad-click:test :apps:ad-aggregation:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 96개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
+      "notes": "ClickEventOutboxStatus에 PROCESSING 추가. relay batch-size 기본값은 100. PENDING row 조회에는 PESSIMISTIC_WRITE lock을 적용해 다중 relay 인스턴스의 중복 claim을 줄인다. consumer listener type=batch, max.poll.records=100. producer batch-size=32768, linger.ms=20, compression-type=lz4 설정."
     }
   ]
 }

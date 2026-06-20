@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.kafka.support.Acknowledgment;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -25,11 +26,11 @@ class ClickEventAggregationConsumerTest {
                 true,
                 null,
                 LocalDateTime.of(2026, 6, 20, 12, 0));
-        when(aggregationService.aggregate(message)).thenReturn(true);
+        when(aggregationService.aggregateAll(List.of(message))).thenReturn(1);
 
-        consumer.consume(message, acknowledgment);
+        consumer.consume(List.of(message), acknowledgment);
 
-        verify(aggregationService).aggregate(message);
+        verify(aggregationService).aggregateAll(List.of(message));
         verify(acknowledgment).acknowledge();
     }
 }

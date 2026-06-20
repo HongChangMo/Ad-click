@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.List;
 
 @Service
 public class ClickAggregationService {
@@ -26,6 +27,21 @@ public class ClickAggregationService {
 
     @Transactional
     public boolean aggregate(ClickEventMessage message) {
+        return aggregateOne(message);
+    }
+
+    @Transactional
+    public int aggregateAll(List<ClickEventMessage> messages) {
+        int processedCount = 0;
+        for (ClickEventMessage message : messages) {
+            if (aggregateOne(message)) {
+                processedCount++;
+            }
+        }
+        return processedCount;
+    }
+
+    private boolean aggregateOne(ClickEventMessage message) {
         if (processedRepository.existsById(message.clickEventId())) {
             return false;
         }

@@ -6,10 +6,13 @@ spring:
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       acks: all
       retries: 2147483647
+      batch-size: 32768
+      compression-type: lz4
       properties:
         enable.idempotence: true
         max.block.ms: 100
         max.in.flight.requests.per.connection: 5
+        linger.ms: 20
     consumer:
       group-id: ad-click-aggregation
       auto-offset-reset: earliest
@@ -20,7 +23,9 @@ spring:
         spring.json.trusted.packages: "com.adclick.*"
         spring.json.use.type.headers: false
         spring.json.value.default.type: com.adclick.aggregation.message.ClickEventMessage
+        max.poll.records: 100
     listener:
+      type: batch
       ack-mode: manual
 
 adclick:
@@ -32,3 +37,4 @@ adclick:
         enabled: true
         fixed-delay-ms: 1000
         publish-timeout-ms: 1000
+        batch-size: 100
