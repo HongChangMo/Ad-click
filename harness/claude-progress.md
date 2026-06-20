@@ -21,6 +21,33 @@
 
 ---
 
+### Session 016 — 2026-06-20
+
+**Goal**
+PR #4 머지 후 로컬 기준점 동기화 및 harness handoff 갱신
+
+**Completed**
+- PR #4 `클릭 과금 안정성 및 통계/보정 기능 구현`이 `main`에 머지된 것을 확인.
+- 로컬 `main`을 `origin/main`으로 fast-forward 동기화.
+- 후속 문서 갱신 브랜치 `chore/post-pr4-handoff` 생성.
+- `harness/session-handoff.md`를 현재 post-merge 상태에 맞게 갱신.
+
+**Verification run**
+```
+./gradlew clean test → BUILD SUCCESSFUL
+  전체 77개 PASS
+```
+
+**Known issues / Lessons**
+- Hibernate drop DDL / MySQL `Communications link failure` 종료 경고는 재현되지 않음.
+- Spring/Tomcat/Hikari 정상 shutdown 로그와 JVM bootstrap classpath warning은 남아 있음.
+- GitHub PR #4에는 별도 CI checks가 등록되어 있지 않음.
+
+**Next best action**
+MVP 1은 완료 상태이므로, MVP 2 범위 또는 다음 cleanup 범위를 확정한 뒤 새 feature branch에서 진행.
+
+---
+
 ### Session 015 — 2026-06-20
 
 **Goal**
