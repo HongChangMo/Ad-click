@@ -28,7 +28,7 @@ class AdApiValkeyFallbackE2ETest {
         registry.add("spring.datasource.url", mysql::getJdbcUrl);
         registry.add("spring.datasource.username", mysql::getUsername);
         registry.add("spring.datasource.password", mysql::getPassword);
-        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create");
         registry.add("spring.data.redis.host", () -> "127.0.0.1");
         registry.add("spring.data.redis.port", () -> 1);
         registry.add("spring.data.redis.timeout", () -> "200ms");

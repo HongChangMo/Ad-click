@@ -21,6 +21,48 @@
 
 ---
 
+### Session 015 — 2026-06-20
+
+**Goal**
+PR merge 전 known issue cleanup — stale dependency test, infrastructure test gap, stale docs wording 정리
+
+**Completed**
+- `DependencyDirectionTest`의 검사 대상 클래스를 현재 `ClickFacade` 이름으로 갱신.
+- `AdJpaRepositoryTest`에 `findAllIdsByStatus()`, `findRandomActive()` 통합 테스트 추가.
+- 비-harness 설계 문서의 오래된 "클릭 10원" 표현을 VIEW=10원 / CLICK=50원 정책에 맞게 수정.
+- setup 문서의 stale `ClickFacadeService` 예시를 `ClickFacade`로 갱신.
+- 현재 handoff의 known issue 목록에서 해결된 항목 제거.
+
+**Verification run**
+```
+./gradlew :apps:ad-management:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 14 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 8 PASSED
+  - ClickReconciliationFacadeTest: 2 PASSED
+  - AdJpaRepositoryTest: 4 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 5 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - ValKeyAbuseGuardAdapterTest: 3 PASSED
+  - AdApiE2ETest: 19 PASSED
+  - AdApiValkeyFallbackE2ETest: 3 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 77개 PASS
+```
+
+**Known issues / Lessons**
+- 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
+- Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 Gradle 결과는 BUILD SUCCESSFUL.
+
+**Next best action**
+PR #4 리뷰/머지 준비 또는 사용자와 MVP 2 범위 확정.
+
+---
+
 ### Session 014 — 2026-06-20
 
 **Goal**
@@ -161,7 +203,6 @@ click-stats (priority 8) — 기간별 유효/무효 클릭 수 조회 API
 
 **Known issues / Lessons**
 - Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
-- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명은 아직 정리 필요.
 
 **Next best action**
 `valkey-fallback` (priority 9): Valkey 장애 시 클릭 fail-open 및 rotation DB fallback 검증/보강.

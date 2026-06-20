@@ -12,13 +12,13 @@
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 74개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 77개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
   - `ClickFacadeTest` (8) — Unit
   - `ClickReconciliationFacadeTest` (2) — Unit
-  - `AdJpaRepositoryTest` (1) — Integration (MySQL Testcontainer)
+  - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
   - `ValKeyRotationAdapterTest` (5) — Integration (Redis:7.2 Testcontainer)
@@ -43,6 +43,16 @@
 ---
 
 ## Changes This Session (Session 014)
+
+## Cleanup After Session 014
+
+- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명을 현재 `ClickFacade`로 갱신.
+- `AdJpaRepositoryTest`에 `findAllIdsByStatus()`, `findRandomActive()` 통합 테스트 추가.
+- 비-harness 설계 문서의 오래된 "클릭 10원" 표현을 VIEW=10원 / CLICK=50원 정책에 맞게 수정.
+- setup 문서의 stale `ClickFacadeService` 예시를 `ClickFacade`로 갱신.
+- 해결된 known issue를 현재 handoff에서 제거.
+
+## Changes Previous Session (Session 014)
 
 - `reconciliation-batch` (priority 10) 구현 완료.
   - `BalanceFacade.refund(adId, amount)` 추가: 잔액 증가 + `REFUND` 거래 이력 기록.
@@ -182,13 +192,8 @@ com.adclick.click/
 ## Still Broken or Unverified
 
 - `bootRun` 미검증 (로컬 DB/Valkey 연결 필요)
-- `AdJpaRepositoryTest` gap: `findAllActiveIds()`, `findRandomActive()` 통합 테스트 미작성
-  - E2E로 검증되어 있으나 infrastructure 계층 테스트 부재
-- 일부 비-harness 설계/블로그/다이어그램 문서에 과거 "클릭 10원" 표현이 남아 있음
-  - 현재 확정 요구사항은 VIEW=10원, CLICK=50원
-- `DependencyDirectionTest`가 stale `ClickFacadeService` 클래스명을 확인함
-  - 의존 방향 검증 의도는 유효하나 다음 코드/테스트 정리 때 현재 클래스명 기준으로 갱신 필요
-- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 테스트 결과는 BUILD SUCCESSFUL
+- 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨
+- Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL
 
 ---
 

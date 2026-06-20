@@ -30,7 +30,7 @@
 ## 1. 서비스 개요
 
 블로그 배너 광고의 클릭 이벤트를 수집·집계하는 서비스입니다.  
-광고주는 비용을 선결제하고, 클릭 발생 시 건당 10원이 차감됩니다.  
+광고주는 비용을 선결제하고, 조회 발생 시 10원, 클릭 발생 시 50원이 차감됩니다.  
 잔액이 소진되면 광고가 자동 중단되며, 시스템에 등록된 광고는 균등하게 노출됩니다.
 
 ---
@@ -273,7 +273,7 @@ abuse:anon:{anonId}:{adId}   TTL 60s  (익명ID 기반 동일 광고 재클릭 �
 지금부터 서비스 레이어를 분리해두면 2단계 전환 시 `ClickEventService` 내부만 교체하면 됩니다.
 
 ```java
-ClickFacadeService
+ClickFacade
   ├── BalanceService.deduct()      // 동기 트랜잭션 (변경 없음)
   └── ClickEventService.record()  // 1단계: 직접 INSERT
                                   // 2단계: Kafka publish 로 교체
@@ -780,7 +780,7 @@ Valkey 장애 시 랜덤 선택으로 대체해도 단기적으로 허용 가능
 
 | 요구사항 | 충족 방법 |
 |----------|-----------|
-| R1 건당 10원 차감 | `BalanceService` 트랜잭션 내 차감 + `balance_transactions` 기록 |
+| R1 조회 10원 / 클릭 50원 차감 | `BalanceService` 트랜잭션 내 이벤트별 차감 + `balance_transactions` 기록 |
 | R2 광고별 독립 잔액 | `ad_balances` 테이블 광고별 분리 관리 |
 | R3 잔액 소진 시 자동 중단 | 차감 후 잔액 0 확인 → `EXHAUSTED` 처리 + Valkey 큐 제거 |
 | R4 균등 노출 | Valkey Round Robin Queue (`LPOP/RPUSH`) |

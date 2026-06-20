@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create")
 @Testcontainers
 class AdJpaRepositoryTest {
 
@@ -45,5 +45,44 @@ class AdJpaRepositoryTest {
         assertThat(found.getName()).isEqualTo("Summer Sale");
         assertThat(found.getStatus()).isEqualTo(AdStatus.ACTIVE);
         assertThat(found.getAdvertiserId()).isEqualTo(1L);
+    }
+
+    @Test
+    void findAllIdsByStatus_returns_only_matching_status_ids() {
+        Ad active1 = adJpaRepository.save(Ad.of(1L, "Active One"));
+        Ad active2 = adJpaRepository.save(Ad.of(1L, "Active Two"));
+        Ad paused = Ad.of(1L, "Paused");
+        paused.changeStatus(AdStatus.PAUSED);
+        adJpaRepository.save(paused);
+        Ad exhausted = Ad.of(1L, "Exhausted");
+        exhausted.changeStatus(AdStatus.EXHAUSTED);
+        adJpaRepository.save(exhausted);
+
+        var activeIds = adJpaRepository.findAllIdsByStatus(AdStatus.ACTIVE);
+
+        assertThat(activeIds).containsExactlyInAnyOrder(active1.getId(), active2.getId());
+        assertThat(activeIds).doesNotContain(paused.getId(), exhausted.getId());
+    }
+
+    @Test
+    void findRandomActive_returns_active_ad_only() {
+        Ad active = adJpaRepository.save(Ad.of(1L, "Active"));
+        Ad paused = Ad.of(1L, "Paused");
+        paused.changeStatus(AdStatus.PAUSED);
+        adJpaRepository.save(paused);
+
+        Ad found = adJpaRepository.findRandomActive().orElseThrow();
+
+        assertThat(found.getId()).isEqualTo(active.getId());
+        assertThat(found.getStatus()).isEqualTo(AdStatus.ACTIVE);
+    }
+
+    @Test
+    void findRandomActive_returns_empty_when_no_active_ad_exists() {
+        Ad paused = Ad.of(1L, "Paused");
+        paused.changeStatus(AdStatus.PAUSED);
+        adJpaRepository.save(paused);
+
+        assertThat(adJpaRepository.findRandomActive()).isEmpty();
     }
 }
