@@ -26,6 +26,11 @@ public class ValKeyRotationAdapter implements AdRotationQueuePort {
     }
 
     @Override
+    public void remove(Long adId) {
+        redisTemplate.opsForList().remove(QUEUE_KEY, 0, adId.toString());
+    }
+
+    @Override
     public Optional<Long> poll() {
         String value = redisTemplate.opsForList().leftPop(QUEUE_KEY);
         return Optional.ofNullable(value).map(Long::parseLong);

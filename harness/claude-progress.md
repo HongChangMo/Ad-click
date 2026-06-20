@@ -1,4 +1,9 @@
-# Claude Progress Log — Ad Click Aggregation
+# Agent Progress Log — Ad Click Aggregation
+
+> Legacy filename: `harness/claude-progress.md`.
+> From 2026-06-19 onward, this is the all-agent progress log.
+> Codex is the primary implementation agent; Claude is a secondary
+> planning/review assistant unless the user explicitly changes that role.
 
 ## Current Verified State
 
@@ -7,12 +12,255 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `balance-concurrency` (priority 5) — SELECT FOR UPDATE + 음수 방어 |
-| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record 완성 |
+| Highest priority unfinished feature | `valkey-fallback` (priority 9) — Valkey 장애 시 클릭 fail-open + rotation DB fallback |
+| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 012 — 2026-06-20
+
+**Goal**
+click-stats (priority 8) — 기간별 유효/무효 클릭 수 조회 API
+
+**Completed**
+- `ClickStatsInfo` 응답 record 추가.
+- `GET /api/v1/ads/{adId}/clicks/stats` API 추가.
+  - `from`, `to` ISO DATE_TIME 쿼리 파라미터 지원.
+  - 생략 시 전체 기간으로 집계.
+- `ClickFacade.stats()` 추가.
+  - 광고 존재 여부 확인 후 없으면 `AdNotFoundException`.
+  - valid/invalid 클릭 수를 각각 조회.
+- `ClickEventRepository.countByAdIdAndValidityBetween(...)` 포트 추가.
+- `ClickEventJpaRepository.countByAdIdAndIsValidAndClickedAtBetween(...)` 추가.
+- 테스트 편의를 위해 `ClickEvent.validAt(...)`, `ClickEvent.invalidAt(...)` factory 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 12 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 8 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 4 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - ValKeyAbuseGuardAdapterTest: 3 PASSED
+  - AdApiE2ETest: 19 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 66개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: click-stats status → done
+
+**Known issues / Lessons**
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명은 아직 정리 필요.
+
+**Next best action**
+`valkey-fallback` (priority 9): Valkey 장애 시 클릭 fail-open 및 rotation DB fallback 검증/보강.
+
+---
+
+### Session 011 — 2026-06-20
+
+**Goal**
+abuse-guard (priority 7) — Valkey TTL 기반 중복 클릭 방어 + API rate limit
+
+**Completed**
+- `AbuseGuardPort`와 `InvalidClickReason` 추가.
+- `ValKeyAbuseGuardAdapter` 구현:
+  - `abuse:ip:{ip}:{adId}` TTL 키로 동일 IP + 광고 60초 중복 클릭 감지.
+  - `abuse:anon:{anonymousId}:{adId}` TTL 키로 동일 anonymous_id + 광고 60초 중복 클릭 감지.
+  - Valkey 장애 시 fail-open으로 클릭 처리를 계속 진행.
+- `ClickFacade.click()`이 중복 클릭이면 `ClickEvent.invalid(...)`를 저장하고 잔액 차감을 생략하도록 변경.
+- `ClickInfo` 응답에 `invalidReason` 추가.
+- `ClickRateLimiter` 추가:
+  - `rate:click:ip:{ip}` Valkey INCR + TTL counter 기반.
+  - 기본값 100 requests / 60 seconds.
+  - 초과 시 `ClickController`가 HTTP 429 반환.
+- 기존 잔액 동시성 E2E는 어뷰징 방어와 충돌하지 않도록 각 요청에 고유 IP/anonymous_id를 부여.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 12 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 6 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 3 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - ValKeyAbuseGuardAdapterTest: 3 PASSED
+  - AdApiE2ETest: 17 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 61개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: abuse-guard status → done
+
+**Known issues / Lessons**
+- API rate limit은 Bucket4j 의존성을 추가하지 않고 Valkey counter로 구현했다. 현재 요구사항인 429 동작은 충족한다.
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명은 아직 정리 필요.
+
+**Next best action**
+`click-stats` (priority 8): 기간별 유효/무효 클릭 수 조회 API.
+
+---
+
+### Session 010 — 2026-06-20
+
+**Goal**
+ad-exhausted (priority 6) — 잔액 0 도달 시 EXHAUSTED 전환 + rotation queue 제외
+
+**Completed**
+- `AdRotationQueuePort.remove(adId)` 추가.
+- `ValKeyRotationAdapter.remove()` 구현: Redis List에서 해당 adId 전체 제거.
+- `BalanceFacade.deduct()`가 잔액 0 도달 시 ACTIVE 광고를 EXHAUSTED로 전환.
+- Valkey queue 제거는 DB commit 이후 `TransactionSynchronization.afterCommit`에서 실행.
+- `BalanceFacadeTest`에 잔액 0 도달 시 EXHAUSTED 전환 및 queue remove 검증 추가.
+- `ValKeyRotationAdapterTest`에 remove 통합 테스트 추가.
+- `AdApiE2ETest.ad_becomes_exhausted_and_is_removed_from_rotation_when_balance_reaches_zero` 추가.
+  - VIEW로 queue에 들어간 광고가 CLICK으로 잔액 0 도달.
+  - 상태 EXHAUSTED 확인.
+  - 추가 클릭 404 확인.
+  - 이후 `/api/v1/ads/next`에서 해당 광고가 반환되지 않음 확인.
+- `AdRotationFacadeTest`에 stale EXHAUSTED queue id를 반환/재삽입하지 않는 방어 테스트 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-management:test --tests "com.adclick.management.application.BalanceFacadeTest" → BUILD SUCCESSFUL
+./gradlew :apps:ad-management:test --tests "com.adclick.management.infrastructure.ValKeyRotationAdapterTest" → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest.ad_becomes_exhausted_and_is_removed_from_rotation_when_balance_reaches_zero" → BUILD SUCCESSFUL
+./gradlew :apps:ad-management:test --tests "com.adclick.management.application.AdRotationFacadeTest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 12 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 4 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 2 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - AdApiE2ETest: 14 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 52개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: ad-exhausted status → done
+
+**Known issues / Lessons**
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- `BalanceFacade.charge()`의 EXHAUSTED → ACTIVE 시 queue offer는 아직 트랜잭션 내부 호출이다. 현재 테스트는 통과하지만, 향후 outbox/after-commit 정리 후보.
+- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명은 아직 정리 필요.
+
+**Next best action**
+`abuse-guard` (priority 7): Valkey TTL 기반 중복 클릭 방어 + rate limit.
+
+---
+
+### Session 009 — 2026-06-20
+
+**Goal**
+balance-concurrency (priority 5) — SELECT FOR UPDATE + 음수 잔액 방어
+
+**Completed**
+- `AdBalance.subtract()` 음수 방어 가드 추가.
+- `InsufficientBalanceException` 추가.
+- `ApiExceptionHandler` 추가: 잔액 부족을 HTTP 404로 매핑.
+- `AdBalanceRepository.findByAdIdForUpdate()` 포트 추가.
+- `AdBalanceJpaRepository.findByAdIdForUpdate()`에 `@Lock(PESSIMISTIC_WRITE)` + JPQL 적용.
+- `AdBalanceRepositoryAdapter`에 lock 조회 위임 추가.
+- `BalanceFacade.deduct()`가 lock 조회 후 차감하도록 변경.
+- `BalanceFacadeTest`에 잔액 부족/잔액 row 없음 테스트 추가.
+- `AdApiE2ETest.concurrent_clicks_deduct_only_available_balance_and_never_go_negative` 추가.
+  - 잔액 500원 광고에 동시 클릭 20개 요청.
+  - 10개 성공, 10개 404, 최종 잔액 0 검증.
+- Rotation E2E가 다른 ACTIVE 광고의 잔액 부족 상태와 충돌하지 않도록 테스트 데이터를 격리.
+
+**Verification run**
+```
+./gradlew :apps:ad-management:test --tests "com.adclick.management.application.BalanceFacadeTest" → BUILD SUCCESSFUL
+./gradlew :apps:ad-click:test --tests "com.adclick.click.application.ClickFacadeTest" → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest.concurrent_clicks_deduct_only_available_balance_and_never_go_negative" → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiE2ETest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 11 PASSED
+  - AdRotationFacadeTest: 6 PASSED
+  - ClickFacadeTest: 4 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 2 PASSED
+  - ValKeyRotationAdapterTest: 4 PASSED
+  - AdApiE2ETest: 13 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 48개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: balance-concurrency status → done
+
+**Known issues / Lessons**
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- 잔액 부족은 상태 전환 없이 404만 반환한다. EXHAUSTED 자동 전환은 priority 6 범위.
+- `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명은 아직 정리 필요.
+
+**Next best action**
+`ad-exhausted` (priority 6): 잔액 0 도달 시 EXHAUSTED 전환 + rotation queue 제외.
+
+---
+
+### Session 008 — 2026-06-19
+
+**Goal**
+Codex takeover: make Codex the primary implementation agent and tighten harness
+management rules.
+
+**Completed**
+- Added `AGENTS.md` as the canonical all-agent operating guide.
+- Reframed `CLAUDE.md` as a legacy Claude entrypoint that points to `AGENTS.md`.
+- Corrected the stale `ClickFacadeServiceTest` command to `ClickFacadeTest`.
+- Clarified that `harness/claude-progress.md` is now an all-agent progress log
+  despite the legacy filename.
+- Tightened clean-state checklist language so partial features cannot be marked
+  `done`.
+- Updated `harness/feature_list.json` metadata date without changing feature
+  statuses.
+
+**Verification run**
+No code changes. Tests not run.
+
+**Evidence recorded**
+No feature status changed.
+
+**Known issues / Lessons**
+- Some non-harness design/blog/diagram documents still contain older "click
+  costs 10 won" wording. Current harness and `AGENTS.md` define VIEW=10 and
+  CLICK=50.
+- `DependencyDirectionTest` checks a stale `ClickFacadeService` class name; the
+  dependency-direction intent remains valid, but the test should be modernized
+  during the next code/test cleanup.
+
+**Next best action**
+`balance-concurrency` (priority 5): SELECT FOR UPDATE + negative-balance guard.
 
 ---
 

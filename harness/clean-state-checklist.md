@@ -29,13 +29,16 @@
 
 ---
 
-## 4. claude-progress.md 업데이트
+## 4. progress log 업데이트
 
 - [ ] 이번 세션의 Session Record 가 추가됐다
 - [ ] `Completed` 항목이 실제로 완료된 것만 기록됐다
 - [ ] `Known risks` 에 이번 세션에서 발견한 위험 요소가 기록됐다
 - [ ] `Next best action` 이 다음 세션의 명확한 시작점을 가리킨다
 - [ ] `Highest priority unfinished feature` 가 현재 상태를 반영한다
+
+> 현재 progress log 파일명은 legacy 호환을 위해 `harness/claude-progress.md`를 유지하지만,
+> 내용은 Claude 전용이 아니라 all-agent 진행 이력으로 관리한다.
 
 ---
 
@@ -52,7 +55,7 @@
 ## 6. 미완성 작업 점검
 
 - [ ] 미완성 코드(TODO, FIXME, 임시 주석)가 `feature_list.json` 의 `notes` 또는 Session Record 의 `Known risks` 에 기록됐다
-- [ ] 절반만 구현된 기능이 `passing` 으로 표시되지 않았다
+- [ ] 절반만 구현된 기능이 `done` 으로 표시되지 않았다
 - [ ] 다음 세션이 수동 수정 없이 `Next Best Action` 만 따라 바로 시작할 수 있다
 
 ---

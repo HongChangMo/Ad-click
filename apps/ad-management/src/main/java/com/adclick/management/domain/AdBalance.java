@@ -33,6 +33,9 @@ public class AdBalance {
     }
 
     public void subtract(BigDecimal amount) {
+        if (this.balance.compareTo(amount) < 0) {
+            throw new InsufficientBalanceException(adId);
+        }
         this.balance = this.balance.subtract(amount);
         this.updatedAt = LocalDateTime.now();
     }

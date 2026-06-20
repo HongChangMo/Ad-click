@@ -2,12 +2,16 @@ package com.adclick.click.interfaces.api;
 
 import com.adclick.click.application.ClickFacade;
 import com.adclick.click.application.info.ClickInfo;
+import com.adclick.click.application.info.ClickStatsInfo;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 @RestController
@@ -15,9 +19,11 @@ import java.util.UUID;
 public class ClickController {
 
     private final ClickFacade clickFacade;
+    private final ClickRateLimiter rateLimiter;
 
-    public ClickController(ClickFacade clickFacade) {
+    public ClickController(ClickFacade clickFacade, ClickRateLimiter rateLimiter) {
         this.clickFacade = clickFacade;
+        this.rateLimiter = rateLimiter;
     }
 
     @PostMapping("/{adId}/clicks")
@@ -27,8 +33,21 @@ public class ClickController {
             HttpServletResponse response) {
 
         String ip = extractClientIp(request);
+        if (!rateLimiter.allow(ip)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).build();
+        }
         String anonId = resolveAnonymousId(request, response);
         return ResponseEntity.ok(clickFacade.click(adId, ip, anonId));
+    }
+
+    @GetMapping("/{adId}/clicks/stats")
+    public ResponseEntity<ClickStatsInfo> stats(
+            @PathVariable("adId") Long adId,
+            @RequestParam(value = "from", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
+            @RequestParam(value = "to", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to) {
+        return ResponseEntity.ok(clickFacade.stats(adId, from, to));
     }
 
     private String extractClientIp(HttpServletRequest request) {

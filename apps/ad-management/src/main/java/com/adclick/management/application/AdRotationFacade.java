@@ -1,8 +1,10 @@
 package com.adclick.management.application;
 
 import com.adclick.management.application.info.AdInfo;
+import com.adclick.management.domain.Ad;
 import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdRotationQueuePort;
+import com.adclick.management.domain.AdStatus;
 import com.adclick.management.domain.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,8 +51,20 @@ public class AdRotationFacade {
             rebuildQueue();
             adId = queuePort.poll();
         }
-        adId.ifPresent(queuePort::offer);
-        return adId.flatMap(adRepository::findById).map(AdInfo::from);
+        if (adId.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return adRepository.findById(adId.get())
+                .filter(this::isActive)
+                .map(ad -> {
+                    queuePort.offer(ad.getId());
+                    return AdInfo.from(ad);
+                });
+    }
+
+    private boolean isActive(Ad ad) {
+        return ad.getStatus() == AdStatus.ACTIVE;
     }
 
     private AdInfo nextAdFromDb() {

@@ -24,4 +24,9 @@ public class AdBalanceRepositoryAdapter implements AdBalanceRepository {
     public Optional<AdBalance> findByAdId(Long adId) {
         return jpaRepository.findById(adId);
     }
+
+    @Override
+    public Optional<AdBalance> findByAdIdForUpdate(Long adId) {
+        return jpaRepository.findByAdIdForUpdate(adId);
+    }
 }

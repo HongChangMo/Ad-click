@@ -121,7 +121,7 @@ class BalanceFacadeTest {
     void deduct_view_subtracts_amount_and_records_view_transaction() {
         AdBalance balance = AdBalance.of(1L);
         balance.add(BigDecimal.valueOf(100));
-        given(adBalanceRepository.findByAdId(1L)).willReturn(Optional.of(balance));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.of(balance));
         given(adBalanceRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(transactionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
@@ -137,7 +137,7 @@ class BalanceFacadeTest {
     void deduct_click_records_click_transaction() {
         AdBalance balance = AdBalance.of(1L);
         balance.add(BigDecimal.valueOf(200));
-        given(adBalanceRepository.findByAdId(1L)).willReturn(Optional.of(balance));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.of(balance));
         given(adBalanceRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
         given(transactionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
 
@@ -145,5 +145,48 @@ class BalanceFacadeTest {
 
         assertThat(balance.getBalance()).isEqualByComparingTo(BigDecimal.valueOf(150));
         verify(transactionRepository).save(argThat(t -> t.getType() == TransactionType.CLICK));
+    }
+
+    @Test
+    void deduct_exhausts_active_ad_when_balance_reaches_zero() {
+        Ad ad = Ad.of(1L, "Almost Empty Ad");
+        AdBalance balance = AdBalance.of(1L);
+        balance.add(BigDecimal.valueOf(50));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.of(balance));
+        given(adRepository.findById(1L)).willReturn(Optional.of(ad));
+        given(adBalanceRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+        given(transactionRepository.save(any())).willAnswer(inv -> inv.getArgument(0));
+
+        balanceFacade.deduct(1L, BigDecimal.valueOf(50), TransactionType.CLICK);
+
+        assertThat(balance.getBalance()).isEqualByComparingTo(BigDecimal.ZERO);
+        assertThat(ad.getStatus()).isEqualTo(AdStatus.EXHAUSTED);
+        verify(adRepository).save(ad);
+        verify(queuePort).remove(1L);
+    }
+
+    @Test
+    void deduct_throws_when_balance_is_insufficient() {
+        AdBalance balance = AdBalance.of(1L);
+        balance.add(BigDecimal.valueOf(40));
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.of(balance));
+
+        assertThatThrownBy(() -> balanceFacade.deduct(1L, BigDecimal.valueOf(50), TransactionType.CLICK))
+                .isInstanceOf(InsufficientBalanceException.class);
+
+        assertThat(balance.getBalance()).isEqualByComparingTo(BigDecimal.valueOf(40));
+        verify(adBalanceRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
+    }
+
+    @Test
+    void deduct_throws_when_balance_row_does_not_exist() {
+        given(adBalanceRepository.findByAdIdForUpdate(1L)).willReturn(Optional.empty());
+
+        assertThatThrownBy(() -> balanceFacade.deduct(1L, BigDecimal.valueOf(50), TransactionType.CLICK))
+                .isInstanceOf(InsufficientBalanceException.class);
+
+        verify(adBalanceRepository, never()).save(any());
+        verify(transactionRepository, never()).save(any());
     }
 }

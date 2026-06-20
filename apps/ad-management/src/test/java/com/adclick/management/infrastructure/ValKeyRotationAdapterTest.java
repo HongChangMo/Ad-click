@@ -78,6 +78,20 @@ class ValKeyRotationAdapterTest {
     }
 
     @Test
+    void remove_deletes_all_matching_ad_ids_from_queue() {
+        adapter.offer(1L);
+        adapter.offer(2L);
+        adapter.offer(1L);
+        adapter.offer(3L);
+
+        adapter.remove(1L);
+
+        assertThat(adapter.poll()).isEqualTo(Optional.of(2L));
+        assertThat(adapter.poll()).isEqualTo(Optional.of(3L));
+        assertThat(adapter.poll()).isEqualTo(Optional.empty());
+    }
+
+    @Test
     void tryRebuildLock_returns_true_first_time_false_second() {
         assertThat(adapter.tryRebuildLock()).isTrue();
         assertThat(adapter.tryRebuildLock()).isFalse();
