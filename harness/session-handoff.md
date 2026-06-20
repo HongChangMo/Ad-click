@@ -6,7 +6,7 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 014)
+## Last Updated: 2026-06-20 (Session 016)
 
 ---
 
@@ -42,9 +42,16 @@
 
 ---
 
-## Changes This Session (Session 014)
+## Changes This Session (Session 016)
 
-## Cleanup After Session 014
+- PR #4 `클릭 과금 안정성 및 통계/보정 기능 구현` 머지 확인.
+- 로컬 `main`을 `origin/main`으로 fast-forward 동기화.
+- 후속 handoff 갱신용 브랜치 `chore/post-pr4-handoff` 생성.
+- `./gradlew clean test` 재실행 결과 BUILD SUCCESSFUL.
+  - 테스트 종료 시 Hibernate drop DDL / MySQL `Communications link failure` 경고는 재현되지 않음.
+  - Spring/Tomcat/Hikari 정상 shutdown 로그와 JVM bootstrap classpath warning은 남아 있음.
+
+## Changes Previous Session (Session 015)
 
 - `DependencyDirectionTest`의 stale `ClickFacadeService` 클래스명을 현재 `ClickFacade`로 갱신.
 - `AdJpaRepositoryTest`에 `findAllIdsByStatus()`, `findRandomActive()` 통합 테스트 추가.
