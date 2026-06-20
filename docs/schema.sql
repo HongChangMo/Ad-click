@@ -37,3 +37,17 @@ CREATE TABLE IF NOT EXISTS click_events (
   INDEX idx_click_abuse (ad_id, ip_address, clicked_at),
   INDEX idx_click_stats (ad_id, clicked_at, is_valid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS processed_click_events (
+  click_event_id BIGINT NOT NULL,
+  processed_at DATETIME(6) NOT NULL,
+  PRIMARY KEY (click_event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS click_daily_stats (
+  ad_id BIGINT NOT NULL,
+  stats_date DATE NOT NULL,
+  valid_count BIGINT NOT NULL,
+  invalid_count BIGINT NOT NULL,
+  PRIMARY KEY (ad_id, stats_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

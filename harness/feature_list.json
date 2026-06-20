@@ -204,6 +204,25 @@
       ],
       "evidence": "ScheduledClickReconciliationJobTest: 2개 유닛 PASS. ValKeyReconciliationLockAdapterTest: 4개 유닛 PASS. ./gradlew :apps:ad-click:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. (2026-06-20)",
       "notes": "ReconciliationLockPort와 ValKeyReconciliationLockAdapter 추가. key는 reconciliation:lock:scheduled, 기본 TTL은 300초. lock 획득 실패 시 scheduled job은 skip한다. Valkey 장애 시 보정 누락을 피하기 위해 fail-open으로 실행한다. 강한 exactly-once batch 보장은 아니며, 외부 batch runner/DB lock은 후속 운영성 후보."
+    },
+    {
+      "id": "kafka-click-aggregation-foundation",
+      "priority": 14,
+      "area": "ad-click + ad-aggregation",
+      "title": "Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer 기반",
+      "user_visible_behavior": "클릭 이벤트 저장 후 Kafka topic으로 이벤트를 발행하고, 별도 집계 모듈이 중복 소비를 방지하면서 일별 클릭 집계를 갱신한다.",
+      "status": "done",
+      "verification": [
+        "클릭 이벤트 저장 후 transaction commit 이후 Kafka publisher가 호출되는지 확인한다.",
+        "Kafka publisher가 ad-click-events topic으로 ClickEventMessage를 발행하는지 확인한다.",
+        "ad-aggregation 모듈 consumer가 ClickEventMessage를 수신하고 DB 처리 후 manual ack를 호출하는지 확인한다.",
+        "consumer가 processed_click_events.click_event_id 기준으로 같은 메시지를 한 번만 집계 반영하는지 확인한다.",
+        "consumer가 click_daily_stats에 valid/invalid count를 분리 집계하는지 확인한다.",
+        "Kafka 브로커가 없어도 publish 실패가 클릭 요청을 실패시키지 않는지 확인한다.",
+        "ad-api E2E context가 ad-aggregation 모듈 연결 후에도 정상 기동되는지 확인한다."
+      ],
+      "evidence": "ClickFacadeTest: afterCommit publish 검증 추가 PASS. KafkaClickEventPublisherTest: 1개 유닛 PASS. ClickEventAggregationConsumerTest: 1개 유닛 PASS. ClickAggregationServiceTest: 2개 JPA 통합 PASS(idempotency + valid/invalid projection). ./gradlew :apps:ad-click:test :apps:ad-aggregation:test :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 92개 테스트 PASS. (2026-06-20)",
+      "notes": "apps:ad-aggregation 모듈 추가. ad-click-events topic 사용. Kafka UI를 docker-compose에 추가(http://localhost:8081). Producer idempotence 설정(enable.idempotence=true, acks=all, retries=Integer.MAX_VALUE, max.in.flight=5). Consumer는 enable-auto-commit=false/manual ack로 DB 처리 성공 후 offset ack. processed_click_events.click_event_id PK를 idempotency key로 사용하고 click_daily_stats 일별 projection을 업데이트한다. Outbox 없이 afterCommit direct publish를 사용하므로 DB commit 후 Kafka publish 실패 가능성은 남아 있고, publisher는 fail-open 처리한다."
     }
   ]
 }

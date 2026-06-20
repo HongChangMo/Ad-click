@@ -40,6 +40,7 @@ docker compose exec -T mysql mysql -uadclick -padclick adclick < docs/seed-mvp1.
 ```
 
 서버는 `http://localhost:8080`에서 실행됩니다.
+Kafka UI는 `http://localhost:8081`에서 확인할 수 있습니다.
 
 ## 테스트
 
@@ -96,6 +97,17 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 
 보정 runner를 주기 실행하려면 `adclick.click.reconciliation.runner.enabled=true`로 설정합니다.
 기본값은 false입니다. 스케줄 runner는 Valkey TTL lock으로 중복 실행을 줄입니다.
+
+Kafka topic:
+
+- `ad-click-events`: 클릭 이벤트 발행 topic
+- `processed_click_events`: consumer idempotency table
+- `click_daily_stats`: Kafka consumer가 업데이트하는 일별 집계 projection
+
+Kafka UI:
+
+- URL: `http://localhost:8081`
+- cluster name: `local`
 
 ## 운영 문서
 

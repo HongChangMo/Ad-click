@@ -4,6 +4,7 @@ import com.adclick.click.application.info.ClickInfo;
 import com.adclick.click.application.info.ClickStatsInfo;
 import com.adclick.click.domain.AbuseGuardPort;
 import com.adclick.click.domain.ClickEvent;
+import com.adclick.click.domain.ClickEventPublisher;
 import com.adclick.click.domain.ClickEventRepository;
 import com.adclick.click.domain.InvalidClickReason;
 import com.adclick.management.application.AdNotFoundException;
@@ -13,11 +14,14 @@ import com.adclick.management.domain.AdRepository;
 import com.adclick.management.domain.AdStatus;
 import com.adclick.management.domain.TransactionType;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -38,11 +42,20 @@ class ClickFacadeTest {
     @Mock BalanceFacade balanceFacade;
     @Mock ClickEventRepository clickEventRepository;
     @Mock AbuseGuardPort abuseGuardPort;
+    @Mock ClickEventPublisher clickEventPublisher;
 
     @InjectMocks ClickFacade clickFacade;
 
+    @AfterEach
+    void clearTransactionSynchronization() {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.clearSynchronization();
+        }
+    }
+
     @Test
     void click_active_ad_deducts_50_and_records_event() {
+        TransactionSynchronizationManager.initSynchronization();
         Ad ad = Ad.of(1L, "Test Ad");
         given(adRepository.findById(1L)).willReturn(Optional.of(ad));
         given(abuseGuardPort.checkAndMark(1L, "1.2.3.4", "anon-id")).willReturn(Optional.empty());
@@ -50,15 +63,18 @@ class ClickFacadeTest {
         given(clickEventRepository.save(any())).willReturn(savedEvent);
 
         ClickInfo result = clickFacade.click(1L, "1.2.3.4", "anon-id");
+        triggerAfterCommit();
 
         assertThat(result.adId()).isEqualTo(1L);
         assertThat(result.isValid()).isTrue();
         verify(balanceFacade).deduct(1L, BigDecimal.valueOf(50), TransactionType.CLICK);
         verify(clickEventRepository).save(any(ClickEvent.class));
+        verify(clickEventPublisher).publish(savedEvent);
     }
 
     @Test
     void click_duplicate_ip_records_invalid_event_without_deducting_balance() {
+        TransactionSynchronizationManager.initSynchronization();
         Ad ad = Ad.of(1L, "Test Ad");
         given(adRepository.findById(1L)).willReturn(Optional.of(ad));
         given(abuseGuardPort.checkAndMark(1L, "1.2.3.4", "anon-id"))
@@ -67,6 +83,7 @@ class ClickFacadeTest {
         given(clickEventRepository.save(any())).willReturn(savedEvent);
 
         ClickInfo result = clickFacade.click(1L, "1.2.3.4", "anon-id");
+        triggerAfterCommit();
 
         assertThat(result.adId()).isEqualTo(1L);
         assertThat(result.isValid()).isFalse();
@@ -77,10 +94,12 @@ class ClickFacadeTest {
         verify(clickEventRepository).save(captor.capture());
         assertThat(captor.getValue().isValid()).isFalse();
         assertThat(captor.getValue().getInvalidReason()).isEqualTo("DUPLICATE_IP");
+        verify(clickEventPublisher).publish(savedEvent);
     }
 
     @Test
     void click_duplicate_anonymous_id_records_invalid_event_without_deducting_balance() {
+        TransactionSynchronizationManager.initSynchronization();
         Ad ad = Ad.of(1L, "Test Ad");
         given(adRepository.findById(1L)).willReturn(Optional.of(ad));
         given(abuseGuardPort.checkAndMark(1L, "5.6.7.8", "anon-id"))
@@ -89,10 +108,12 @@ class ClickFacadeTest {
         given(clickEventRepository.save(any())).willReturn(savedEvent);
 
         ClickInfo result = clickFacade.click(1L, "5.6.7.8", "anon-id");
+        triggerAfterCommit();
 
         assertThat(result.isValid()).isFalse();
         assertThat(result.invalidReason()).isEqualTo("DUPLICATE_ANON");
         verify(balanceFacade, never()).deduct(any(), any(), any());
+        verify(clickEventPublisher).publish(savedEvent);
     }
 
     @Test
@@ -132,6 +153,7 @@ class ClickFacadeTest {
 
         verify(balanceFacade, never()).deduct(any(), any(), any());
         verify(clickEventRepository, never()).save(any());
+        verify(clickEventPublisher, never()).publish(any());
     }
 
     @Test
@@ -145,6 +167,7 @@ class ClickFacadeTest {
 
         verify(balanceFacade, never()).deduct(any(), any(), any());
         verify(clickEventRepository, never()).save(any());
+        verify(clickEventPublisher, never()).publish(any());
     }
 
     @Test
@@ -158,5 +181,12 @@ class ClickFacadeTest {
 
         verify(balanceFacade, never()).deduct(any(), any(), any());
         verify(clickEventRepository, never()).save(any());
+        verify(clickEventPublisher, never()).publish(any());
+    }
+
+    private void triggerAfterCommit() {
+        for (TransactionSynchronization synchronization : TransactionSynchronizationManager.getSynchronizations()) {
+            synchronization.afterCommit();
+        }
     }
 }
