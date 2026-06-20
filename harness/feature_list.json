@@ -339,6 +339,23 @@
       ],
       "evidence": "ClickEventOutboxClaimServiceTest: 4개 유닛 PASS. ClickEventAggregationConsumerTest: 2개 유닛 PASS. ./gradlew :apps:ad-click:test :apps:ad-aggregation:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 102개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
       "notes": "FAILED row는 producer-side DLQ로 운영 점검한다. consumer-side Kafka DLT topic은 아직 도입하지 않았고, 실패 batch는 no-ack 재전달과 processed_click_events idempotency로 방어한다."
+    },
+    {
+      "id": "outbox-failed-retry-api",
+      "priority": 22,
+      "area": "ad-click",
+      "title": "FAILED Outbox 운영 재처리 API",
+      "user_visible_behavior": "운영자가 FAILED 상태로 격리된 Kafka outbox row를 조회하고, 검토 후 PENDING으로 되돌려 relay가 다시 발행하게 할 수 있다.",
+      "status": "done",
+      "verification": [
+        "FAILED outbox row 목록을 최신 failed_at 기준으로 조회할 수 있는지 확인한다.",
+        "조회 size가 허용 범위로 제한되는지 확인한다.",
+        "FAILED row 재처리 요청 시 상태가 PENDING으로 돌아가고 failed_at이 초기화되는지 확인한다.",
+        "FAILED가 아닌 row 또는 없는 id 재처리 요청은 404로 처리되는지 확인한다.",
+        "ad-api context가 신규 admin controller를 포함해 정상 기동되는지 확인한다."
+      ],
+      "evidence": "ClickEventOutboxAdminServiceTest: 3개 유닛 PASS. ClickEventOutboxAdminControllerTest: 2개 유닛 PASS. ./gradlew :apps:ad-click:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 107개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
+      "notes": "엔드포인트는 GET /api/v1/admin/click-event-outbox/failed, POST /api/v1/admin/click-event-outbox/{outboxId}/retry. 인증/권한은 아직 없으므로 운영 노출 전 보강 필요."
     }
   ]
 }

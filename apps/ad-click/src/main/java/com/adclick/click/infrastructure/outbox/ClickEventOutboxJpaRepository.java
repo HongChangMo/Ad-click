@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface ClickEventOutboxJpaRepository extends JpaRepository<ClickEventOutbox, Long> {
 
@@ -36,4 +37,11 @@ public interface ClickEventOutboxJpaRepository extends JpaRepository<ClickEventO
             ClickEventOutboxStatus status,
             LocalDateTime staleBefore,
             Pageable pageable);
+
+    List<ClickEventOutbox> findByStatusOrderByFailedAtDescIdDesc(
+            ClickEventOutboxStatus status,
+            Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<ClickEventOutbox> findByIdAndStatus(Long id, ClickEventOutboxStatus status);
 }

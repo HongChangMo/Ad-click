@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 028)
+## Last Updated: 2026-06-20 (Session 029)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 102개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 107개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -29,6 +29,8 @@
   - `OutboxClickEventPublisherTest` (1) — Unit
   - `ClickEventOutboxRelayTest` (3) — Unit
   - `ClickEventOutboxClaimServiceTest` (4) — Unit
+  - `ClickEventOutboxAdminServiceTest` (3) — Unit
+  - `ClickEventOutboxAdminControllerTest` (2) — Unit
   - `ClickEventAggregationConsumerTest` (2) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
@@ -62,6 +64,7 @@
 - `kafka-batch-outbox-and-consumer` feature: **done**
 - `outbox-claim-retry-backoff` feature: **done**
 - `outbox-dlq-consumer-failure-policy` feature: **done**
+- `outbox-failed-retry-api` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -79,7 +82,25 @@
 
 ---
 
-## Changes This Session (Session 028)
+## Changes This Session (Session 029)
+
+- PR #16 `Outbox DLQ와 Consumer 실패 정책 추가` merge 완료.
+- `FAILED` outbox 운영 조회/재처리 API 추가.
+  - `GET /api/v1/admin/click-event-outbox/failed?size=20`
+  - `POST /api/v1/admin/click-event-outbox/{outboxId}/retry`
+- `ClickEventOutboxAdminService` 추가.
+  - `FAILED` row 목록 조회.
+  - 특정 `FAILED` row를 `PENDING`으로 전환해 relay 재발행 대상에 포함.
+  - 없는 id 또는 `FAILED`가 아닌 row는 empty 반환, API는 404 반환.
+- README/runbook/harness 갱신.
+- 검증:
+  - `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 107개 PASS, test tasks up-to-date)
+  - `harness/feature_list.json` JSON parse OK
+  - `git diff --check` PASS
+
+## Changes Previous Session (Session 028)
 
 - PR #15 `Outbox claim 분리와 retry backoff 추가` merge 완료.
 - Outbox 영구 실패 격리 추가.
