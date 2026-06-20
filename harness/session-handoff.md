@@ -6,20 +6,21 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 019)
+## Last Updated: 2026-06-20 (Session 020)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 83개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 88개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
   - `ClickFacadeTest` (8) — Unit
   - `ClickReconciliationFacadeTest` (2) — Unit
   - `ClickReconciliationRunnerTest` (1) — Unit
-  - `ScheduledClickReconciliationJobTest` (1) — Unit
+  - `ScheduledClickReconciliationJobTest` (2) — Unit
+  - `ValKeyReconciliationLockAdapterTest` (4) — Unit
   - `ValKeyRotationAdapterCircuitBreakerTest` (2) — Unit
   - `ValKeyAbuseGuardAdapterCircuitBreakerTest` (1) — Unit
   - `ClickRateLimiterTest` (1) — Unit
@@ -44,16 +45,40 @@
 - `reconciliation-batch` feature: **done**
 - `valkey-circuit-breaker` feature: **done**
 - `reconciliation-runner` feature: **done**
+- `reconciliation-lock` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
+- MVP 2 feature list priority 13: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 019)
+## Changes This Session (Session 020)
+
+- MVP 2 `reconciliation-lock` (priority 13) 구현 완료.
+- `ReconciliationLockPort` 추가.
+- `ValKeyReconciliationLockAdapter` 추가.
+  - key: `reconciliation:lock:{lockKey}`
+  - scheduled job lock key: `scheduled`
+  - 기본 TTL: 300초
+  - Valkey 장애 시 보정 누락 방지를 위해 fail-open으로 `true` 반환.
+- `ScheduledClickReconciliationJob`에 lock 획득/해제 적용.
+  - lock 획득 실패 시 runner 실행 skip.
+  - lock 획득 성공 시 runner 실행 후 finally에서 release.
+- `application.yml`에 `lock-ttl-seconds` 설정 추가.
+- README/runbook에 Valkey TTL lock 정책과 한계 반영.
+- 추가 테스트:
+  - `ScheduledClickReconciliationJobTest` lock 성공/skip 검증.
+  - `ValKeyReconciliationLockAdapterTest` setIfAbsent 성공/실패, fail-open, release 검증.
+- 검증:
+  - `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 88개 PASS, test tasks up-to-date)
+
+## Changes Previous Session (Session 019)
 
 - PR #7 `Valkey 경로 Retry 및 Circuit Breaker 도입` 머지 확인.
 - MVP 2 `reconciliation-runner` (priority 12) 구현 완료.
@@ -281,7 +306,7 @@ com.adclick.click/
 - 스키마 마이그레이션 도구는 아직 없음. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비.
 - reconciliation은 HTTP 수동 트리거 방식. 전용 batch runner는 MVP 2 후보.
 - Resilience4j는 programmatic Retry + CircuitBreaker만 도입됨. Spring Boot Actuator/Prometheus metric 노출은 후속 운영성 후보.
-- Reconciliation scheduler는 단일 인스턴스 기준이다. 분산 락/중복 실행 방지는 아직 없음.
+- Reconciliation scheduler는 Valkey TTL lock으로 중복 실행을 줄인다. Valkey 장애 시 fail-open이므로 강한 exactly-once batch 보장은 아님.
 - 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
 - Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
 
@@ -296,12 +321,12 @@ com.adclick.click/
 ## Next Best Action
 
 **MVP 1 feature list 기준 priority 1-10 완료.**
-**MVP 2 priority 11-12 완료.**
-- Reconciliation runner PR 리뷰/머지.
-- 이후 MVP 2 다음 후보 선택: outbox/retry, 관리자 통계/모니터링 API, 인증/권한 중 택1.
+**MVP 2 priority 11-13 완료.**
+- Reconciliation lock PR 리뷰/머지.
+- 이후 MVP 2 다음 후보 선택: batch 실행 이력 테이블, outbox/retry, 관리자 통계/모니터링 API 중 택1.
 
 **건드리지 말아야 할 것**
-- 명시되지 않은 priority 13+ 후속 기능: outbox/retry 등 미적용
+- 명시되지 않은 priority 14+ 후속 기능: outbox/retry 등 미적용
 
 ---
 

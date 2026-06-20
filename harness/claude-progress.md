@@ -12,12 +12,48 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-12 완료 |
-| Current blocker | 없음 — reconciliation runner 구현 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-13 완료 |
+| Current blocker | 없음 — reconciliation runner lock 구현 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 020 — 2026-06-20
+
+**Goal**
+MVP 2 priority 13 — reconciliation runner 중복 실행 방지
+
+**Completed**
+- `ReconciliationLockPort` 추가.
+- `ValKeyReconciliationLockAdapter` 추가.
+  - `reconciliation:lock:{lockKey}` TTL key 사용.
+  - scheduled job lock key는 `scheduled`.
+  - 기본 TTL은 300초.
+  - Valkey 장애 시 보정 누락 방지를 위해 fail-open.
+- `ScheduledClickReconciliationJob`에 lock 획득/해제 적용.
+  - lock 획득 실패 시 skip.
+  - lock 획득 성공 시 runner 실행 후 finally에서 release.
+- `application.yml`에 `lock-ttl-seconds` 설정 추가.
+- README/runbook에 Valkey TTL lock 정책과 한계 반영.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 88개 PASS
+```
+
+**Known issues / Lessons**
+- Valkey TTL lock은 중복 실행을 줄이지만 exactly-once 보장은 아니다.
+- Valkey 장애 시 lock은 fail-open이므로 다중 인스턴스에서 중복 실행 가능성이 남는다.
+- 강한 보장이 필요하면 DB lock, ShedLock, 외부 batch runner 중 하나가 필요하다.
+
+**Next best action**
+Reconciliation lock PR 리뷰/머지. 이후 batch 실행 이력 테이블 또는 관리자 통계/모니터링 API 중 선택.
 
 ---
 

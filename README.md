@@ -95,7 +95,7 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 ```
 
 보정 runner를 주기 실행하려면 `adclick.click.reconciliation.runner.enabled=true`로 설정합니다.
-기본값은 false입니다.
+기본값은 false입니다. 스케줄 runner는 Valkey TTL lock으로 중복 실행을 줄입니다.
 
 ## 운영 문서
 

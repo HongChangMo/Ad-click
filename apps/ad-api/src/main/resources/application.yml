@@ -33,6 +33,7 @@ adclick:
         fixed-delay-ms: 60000
         window-minutes: 10
         lag-seconds: 30
+        lock-ttl-seconds: 300
   valkey:
     circuit-breaker:
       failure-rate-threshold: 50
