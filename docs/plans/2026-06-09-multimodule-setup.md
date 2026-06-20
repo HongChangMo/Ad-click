@@ -367,7 +367,7 @@ class DependencyDirectionTest {
     void adManagement_should_not_depend_on_adClick() {
         // ad-management 클래스패스에서 ad-click 패키지 클래스가 로드되면 안 됨
         try {
-            Class.forName("com.adclick.click.application.ClickFacadeService");
+            Class.forName("com.adclick.click.application.ClickFacade");
             throw new AssertionError("ad-management must not depend on ad-click");
         } catch (ClassNotFoundException e) {
             // 정상: ad-click 클래스가 클래스패스에 없어야 함

@@ -36,13 +36,42 @@ public class ClickEvent {
     protected ClickEvent() {}
 
     public static ClickEvent valid(Long adId, String ipAddress, String anonymousId) {
+        return validAt(adId, ipAddress, anonymousId, LocalDateTime.now());
+    }
+
+    public static ClickEvent validAt(Long adId, String ipAddress, String anonymousId, LocalDateTime clickedAt) {
         ClickEvent e = new ClickEvent();
         e.adId = adId;
         e.ipAddress = ipAddress;
         e.anonymousId = anonymousId;
-        e.clickedAt = LocalDateTime.now();
+        e.clickedAt = clickedAt;
         e.isValid = true;
         return e;
+    }
+
+    public static ClickEvent invalid(Long adId, String ipAddress, String anonymousId, InvalidClickReason reason) {
+        return invalidAt(adId, ipAddress, anonymousId, reason, LocalDateTime.now());
+    }
+
+    public static ClickEvent invalidAt(
+            Long adId,
+            String ipAddress,
+            String anonymousId,
+            InvalidClickReason reason,
+            LocalDateTime clickedAt) {
+        ClickEvent e = new ClickEvent();
+        e.adId = adId;
+        e.ipAddress = ipAddress;
+        e.anonymousId = anonymousId;
+        e.clickedAt = clickedAt;
+        e.isValid = false;
+        e.invalidReason = reason.name();
+        return e;
+    }
+
+    public void markInvalid(InvalidClickReason reason) {
+        this.isValid = false;
+        this.invalidReason = reason.name();
     }
 
     public Long getId() { return id; }

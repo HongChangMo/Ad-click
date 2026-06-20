@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(classes = TestApplication.class)
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
-@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@TestPropertySource(properties = "spring.jpa.hibernate.ddl-auto=create")
 @Testcontainers
 class ValKeyRotationAdapterTest {
 
@@ -75,6 +75,20 @@ class ValKeyRotationAdapterTest {
 
         assertThat(adapter.poll()).isEqualTo(Optional.of(2L));
         assertThat(adapter.poll()).isEqualTo(Optional.of(1L));
+    }
+
+    @Test
+    void remove_deletes_all_matching_ad_ids_from_queue() {
+        adapter.offer(1L);
+        adapter.offer(2L);
+        adapter.offer(1L);
+        adapter.offer(3L);
+
+        adapter.remove(1L);
+
+        assertThat(adapter.poll()).isEqualTo(Optional.of(2L));
+        assertThat(adapter.poll()).isEqualTo(Optional.of(3L));
+        assertThat(adapter.poll()).isEqualTo(Optional.empty());
     }
 
     @Test

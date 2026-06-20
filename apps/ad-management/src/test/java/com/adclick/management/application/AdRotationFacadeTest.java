@@ -110,6 +110,27 @@ class AdRotationFacadeTest {
     }
 
     @Test
+    void getNextAd_does_not_return_or_requeue_exhausted_ad_from_queue() {
+        Ad exhausted = mock(Ad.class);
+        given(exhausted.getStatus()).willReturn(AdStatus.EXHAUSTED);
+        Ad active = mock(Ad.class);
+        given(active.getId()).willReturn(2L);
+        given(active.getName()).willReturn("Active Fallback Ad");
+        given(active.getStatus()).willReturn(AdStatus.ACTIVE);
+
+        given(queuePort.poll()).willReturn(Optional.of(1L));
+        given(adRepository.findById(1L)).willReturn(Optional.of(exhausted));
+        given(adRepository.findRandomActive()).willReturn(Optional.of(active));
+
+        AdInfo result = adRotationFacade.getNextAd();
+
+        assertThat(result.id()).isEqualTo(2L);
+        verify(queuePort, never()).offer(1L);
+        verify(adRepository).findRandomActive();
+        verify(balanceFacade).deduct(2L, BigDecimal.TEN, TransactionType.VIEW);
+    }
+
+    @Test
     void getNextAd_throws_NoActiveAdException_when_no_active_ads() {
         given(queuePort.poll()).willReturn(Optional.empty());
         given(queuePort.tryRebuildLock()).willReturn(true);

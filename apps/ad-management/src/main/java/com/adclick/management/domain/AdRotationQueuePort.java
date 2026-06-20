@@ -4,6 +4,7 @@ import java.util.Optional;
 
 public interface AdRotationQueuePort {
     void offer(Long adId);
+    void remove(Long adId);
     Optional<Long> poll();
     boolean tryRebuildLock();
     void releaseRebuildLock();

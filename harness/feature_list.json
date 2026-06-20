@@ -1,6 +1,6 @@
 {
   "project": "ad-click-aggregation",
-  "last_updated": "2026-06-09",
+  "last_updated": "2026-06-20",
   "features": [
     {
       "id": "ad-crud",
@@ -73,14 +73,14 @@
       "area": "ad-click",
       "title": "잔액 차감 동시성 처리 (따닥 이슈 방어)",
       "user_visible_behavior": "동시에 N개의 클릭이 들어와도 잔액이 정확히 N × 50원만 차감되고 음수가 되지 않는다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "잔액 500원인 광고에 동시 클릭 20개 발생 시 정확히 10개만 차감(500원)되는지 확인한다.",
         "잔액이 0이 된 이후 추가 클릭 요청이 404로 차단되는지 확인한다.",
         "동시성 테스트: ExecutorService 또는 CountDownLatch로 100개 스레드 동시 요청 후 잔액 검증."
       ],
-      "evidence": "",
-      "notes": "1단계: Pessimistic Lock (SELECT FOR UPDATE). 2단계: Valkey Lua Script로 전환 예정"
+      "evidence": "BalanceFacadeTest: 11개 유닛 PASS (insufficient balance 2개 추가). AdApiE2ETest: concurrent_clicks_deduct_only_available_balance_and_never_go_negative PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 48개 테스트 PASS. (2026-06-20)",
+      "notes": "1단계 Pessimistic Lock 구현 완료: AdBalanceJpaRepository.findByAdIdForUpdate()에 PESSIMISTIC_WRITE 적용. AdBalance.subtract() 음수 가드 추가. 잔액 부족은 HTTP 404로 매핑. 2단계 Valkey Lua Script 전환은 미래 확장."
     },
     {
       "id": "ad-exhausted",
@@ -88,14 +88,14 @@
       "area": "ad-click",
       "title": "잔액 소진 시 광고 자동 중단",
       "user_visible_behavior": "잔액이 0이 되는 순간 광고 상태가 EXHAUSTED로 전환되고 Valkey 큐에서 제거되어 더 이상 노출되지 않는다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "잔액 10원인 광고에 클릭 1회 후 상태가 EXHAUSTED로 변경됐는지 확인한다.",
         "EXHAUSTED 전환 후 GET /api/v1/ads/next 에서 해당 광고가 반환되지 않는지 확인한다.",
         "EXHAUSTED 광고에 클릭 시 404가 반환되는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "상태 전환과 Valkey 큐 제거가 동일 트랜잭션 내에서 처리되어야 함"
+      "evidence": "BalanceFacadeTest: 12개 유닛 PASS (잔액 0 도달 시 ACTIVE -> EXHAUSTED + queue remove 검증). AdRotationFacadeTest: 7개 유닛 PASS (stale EXHAUSTED queue id 방어 포함). ValKeyRotationAdapterTest: 5개 통합 PASS (remove deletes matching IDs 추가). AdApiE2ETest: ad_becomes_exhausted_and_is_removed_from_rotation_when_balance_reaches_zero PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 52개 테스트 PASS. (2026-06-20)",
+      "notes": "BalanceFacade.deduct()에서 잔액이 0이 되면 ACTIVE 광고를 EXHAUSTED로 전환. Valkey queue 제거는 TransactionSynchronization.afterCommit에서 수행하여 DB 롤백 시 큐 불일치를 피함. /next는 stale EXHAUSTED queue id를 반환하거나 재삽입하지 않고 DB fallback으로 전환함."
     },
     {
       "id": "abuse-guard",
@@ -103,15 +103,15 @@
       "area": "ad-click",
       "title": "어뷰징 방어 (Rate Limit + 중복 클릭 방지)",
       "user_visible_behavior": "동일 IP 또는 익명 ID로 같은 광고를 60초 내 재클릭하면 is_valid=false로 기록되고 잔액이 차감되지 않는다. Rate Limit 초과 시 429를 반환한다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "동일 IP로 같은 광고를 연속 2회 클릭했을 때 두 번째 클릭이 is_valid=false, invalid_reason=DUPLICATE_IP 로 기록되는지 확인한다.",
         "동일 anonymous_id로 같은 광고를 연속 2회 클릭했을 때 두 번째 클릭이 is_valid=false, invalid_reason=DUPLICATE_ANON 으로 기록되는지 확인한다.",
         "Rate Limit 초과 요청에 429 응답이 반환되는지 확인한다.",
         "중복 클릭 시 잔액이 차감되지 않는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "Bucket4j (API 레벨) + Valkey TTL 키 (도메인 레벨) 이중 방어"
+      "evidence": "ClickFacadeTest: 6개 유닛 PASS (DUPLICATE_IP/DUPLICATE_ANON 잔액 미차감 추가). ClickEventJpaRepositoryTest: 3개 통합 PASS (invalid_reason 저장 추가). ValKeyAbuseGuardAdapterTest: 3개 Redis 통합 PASS (IP/anonymous_id TTL 키 검증). AdApiE2ETest: duplicate IP, duplicate anonymous_id, rate limit 429 E2E 추가 후 17개 PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 61개 테스트 PASS. (2026-06-20)",
+      "notes": "ValKeyAbuseGuardAdapter가 abuse:ip:{ip}:{adId}, abuse:anon:{anonymousId}:{adId} TTL 키로 60초 중복 클릭을 감지한다. 중복 클릭은 ClickEvent.invalid(..., DUPLICATE_*)로 저장하고 BalanceFacade.deduct()를 호출하지 않는다. API rate limit은 ClickRateLimiter가 Valkey INCR + TTL counter로 IP별 기본 100회/60초 제한을 적용한다. Valkey 장애 시 중복 방어와 rate limit은 fail-open으로 처리한다."
     },
     {
       "id": "click-stats",
@@ -119,13 +119,13 @@
       "area": "ad-click",
       "title": "클릭 통계 조회 API",
       "user_visible_behavior": "GET /api/v1/ads/{adId}/clicks/stats 로 기간별 유효/무효 클릭 수를 조회할 수 있다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "클릭 10회(유효 7, 무효 3) 후 stats 조회 시 각각 7, 3으로 반환되는지 확인한다.",
         "기간 파라미터(from, to)로 필터링이 동작하는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "idx_click_stats (ad_id, clicked_at, is_valid) 인덱스 활용"
+      "evidence": "ClickFacadeTest: 8개 유닛 PASS (stats count + ad not found 추가). ClickEventJpaRepositoryTest: 4개 통합 PASS (ad_id/is_valid/clicked_at between count 검증). AdApiE2ETest: click_stats_returns_valid_and_invalid_counts, click_stats_filters_by_period 추가 후 19개 PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 66개 테스트 PASS. (2026-06-20)",
+      "notes": "GET /api/v1/ads/{adId}/clicks/stats 구현 완료. from/to ISO DATE_TIME 쿼리 파라미터를 지원하며 생략 시 전체 기간으로 집계한다. ClickEventJpaRepository.countByAdIdAndIsValidAndClickedAtBetween()로 idx_click_stats (ad_id, clicked_at, is_valid) 인덱스 활용 경로를 사용한다."
     },
     {
       "id": "valkey-fallback",
@@ -133,13 +133,13 @@
       "area": "ad-click",
       "title": "Valkey 장애 Fallback 처리",
       "user_visible_behavior": "Valkey 장애 시 어뷰징 체크를 건너뛰고 클릭을 허용(Fail Open)하며, Round Robin은 DB Fallback으로 ACTIVE 광고를 랜덤 반환한다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "Valkey 연결을 강제로 끊은 상태에서 클릭 요청이 500이 아닌 200으로 처리되는지 확인한다.",
         "Valkey 장애 중 GET /api/v1/ads/next 가 DB에서 ACTIVE 광고를 반환하는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "1단계: Fail Open. 2단계: Circuit Breaker (Resilience4j) + DB Fallback 어뷰징 체크로 전환 예정"
+      "evidence": "AdRotationFacadeTest: getNextAd_falls_back_to_db_random_on_valkey_exception PASS. AdApiValkeyFallbackE2ETest: click_succeeds_when_valkey_is_unavailable, getNextAd_falls_back_to_db_when_valkey_is_unavailable PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 68개 테스트 PASS. (2026-06-20)",
+      "notes": "1단계 Fail Open 완료. ClickRateLimiter와 ValKeyAbuseGuardAdapter는 Valkey RuntimeException 발생 시 요청을 허용한다. AdRotationFacade는 queuePort 장애 시 DB random ACTIVE fallback으로 전환한다. Circuit Breaker (Resilience4j) + DB Fallback 어뷰징 체크는 미래 확장."
     },
     {
       "id": "reconciliation-batch",
@@ -147,13 +147,13 @@
       "area": "ad-click",
       "title": "사후 보정 배치 (Valkey 장애 구간 중복 클릭 환불)",
       "user_visible_behavior": "Valkey 장애 구간에 발생한 중복 클릭을 탐지하여 is_valid=false로 재분류하고 광고주 잔액을 환불한다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "장애 구간 시작/종료 시각을 입력받아 해당 구간의 click_events에서 중복 클릭(동일 IP + adId)을 탐지하는지 확인한다.",
         "탐지된 중복 클릭에 대해 잔액 환불 및 balance_transactions REFUND 이력이 기록되는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "idx_click_abuse (ad_id, ip_address, clicked_at) 인덱스 활용. 2단계에서 Kafka Consumer로 대체 예정"
+      "evidence": "BalanceFacadeTest: 14개 유닛 PASS (refund balance + REFUND transaction 추가). ClickReconciliationFacadeTest: 2개 유닛 PASS (adId+ip 중복 탐지/환불 검증). ClickEventJpaRepositoryTest: 5개 통합 PASS (valid events ordered scan 추가). AdApiValkeyFallbackE2ETest: reconciliation_invalidates_duplicate_clicks_and_refunds_balance_after_valkey_outage PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 74개 테스트 PASS. (2026-06-20)",
+      "notes": "POST /api/v1/clicks/reconciliation 구현 완료. from/to 구간의 유효 클릭을 clicked_at 순서로 스캔하고 동일 adId+ipAddress 그룹에서 첫 클릭 이후 중복 클릭을 DUPLICATE_IP로 무효화한다. 중복 1건당 50원을 BalanceFacade.refund()로 환불하고 balance_transactions REFUND 이력을 기록한다. 2단계에서 Kafka Consumer/전용 batch runner로 대체 가능."
     }
   ]
 }
