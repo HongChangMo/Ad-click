@@ -43,3 +43,4 @@ adclick:
           initial-interval-ms: 1000
           multiplier: 2.0
           max-interval-ms: 60000
+          max-attempts: 10

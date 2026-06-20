@@ -55,13 +55,24 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - relay 재시도 때문에 Kafka 이벤트는 중복 발행될 수 있으며, consumer idempotency가 최종 집계 중복 반영을 막는다.
 - outbox relay는 짧은 claim 트랜잭션에서 PENDING row를 PROCESSING으로 표시한 뒤 commit하고, DB lock 없이 Kafka send를 일괄 요청한다.
 - relay 실패 row는 PENDING으로 되돌아가며 `next_retry_at` 이후 재시도된다. retry 지연은 initial interval, multiplier, max interval 설정을 따른다.
+- retry 횟수가 `adclick.kafka.outbox.relay.retry.max-attempts`에 도달하면 row는 `FAILED`로 격리된다. `FAILED` row는 producer-side DLQ로 보고 `last_error`, payload, Kafka broker 상태를 확인한 뒤 수동 재처리 여부를 결정한다.
 - relay 장애로 PROCESSING에 남은 row는 `processing-timeout-seconds` 이후 PENDING으로 복구된다.
 - producer는 idempotence를 켠다: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`.
 - producer는 `batch-size`, `linger.ms`, `compression-type` 설정으로 broker 전송 효율을 높인다.
-- consumer는 batch listener와 manual ack를 사용하고, DB batch 처리 성공 후 offset을 acknowledge한다.
+- consumer는 batch listener와 manual ack를 사용하고, 한 트랜잭션의 DB batch 처리 성공 후 offset을 acknowledge한다. DB 처리 실패 시 ack하지 않고 예외를 다시 던져 Kafka 재전달 경로로 남긴다.
 - consumer poll batch 크기는 `spring.kafka.consumer.properties.max.poll.records`로 조정한다.
 - consumer는 `processed_click_events.click_event_id`를 idempotency key로 사용한다.
 - consumer는 `click_daily_stats` 일별 projection을 업데이트한다.
+
+Outbox DLQ 점검 예시:
+
+```sql
+SELECT id, topic, message_key, attempt_count, last_error, failed_at
+FROM click_event_outbox
+WHERE status = 'FAILED'
+ORDER BY failed_at DESC
+LIMIT 20;
+```
 
 Kafka UI에서 topic과 consumer group을 확인할 수 있다.
 Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리한다.

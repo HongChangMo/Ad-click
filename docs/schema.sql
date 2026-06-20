@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS click_event_outbox (
   next_retry_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NOT NULL,
   published_at DATETIME(6),
+  failed_at DATETIME(6),
   PRIMARY KEY (id),
   INDEX idx_click_event_outbox_status_retry_created (status, next_retry_at, created_at, id),
   INDEX idx_click_event_outbox_processing_claimed (status, claimed_at, id)

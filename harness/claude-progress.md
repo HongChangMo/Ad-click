@@ -13,11 +13,43 @@
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
 | Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-20 완료 |
-| Current blocker | 없음 — Outbox claim 분리와 retry backoff 완료 |
+| Current blocker | 없음 — Outbox DLQ/consumer 실패 정책 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 028 — 2026-06-20
+
+Outbox DLQ 격리와 Kafka consumer 실패 정책 보강
+
+**Merged**
+- PR #15 `Outbox claim 분리와 retry backoff 추가` merge 완료.
+
+**Implemented**
+- `ClickEventOutboxStatus.FAILED` 추가.
+- `click_event_outbox.failed_at` 추가.
+- `adclick.kafka.outbox.relay.retry.max-attempts` 설정 추가.
+- publish 실패 누적 횟수가 max-attempts 이상이면 outbox row를 `FAILED`로 격리.
+- `FAILED` row를 producer-side DLQ로 운영 점검하도록 README/runbook에 명시.
+- aggregation consumer가 batch 처리 실패 시 ack하지 않고 예외를 다시 던지도록 실패 정책을 코드와 테스트로 명시.
+
+**Verification**
+- `./gradlew :apps:ad-click:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+- `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+- `./gradlew test` → BUILD SUCCESSFUL
+  전체 102개 PASS (test tasks up-to-date)
+- `harness/feature_list.json` JSON parse OK
+- `git diff --check` PASS
+
+**Known issues / Follow-up**
+- `FAILED` row 수동 재처리 API는 아직 없다. 현재는 DB 점검 후 수동 조치 전제.
+- consumer-side Kafka DLT topic은 아직 없다. 현재 consumer 실패는 no-ack 재전달과 DB idempotency로 방어한다.
+
+**Next best action**
+PR 생성/머지.
 
 ---
 

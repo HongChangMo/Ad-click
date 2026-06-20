@@ -36,6 +36,7 @@ class ClickEventOutboxRelayTest {
                 1000,
                 2.0,
                 60000,
+                10,
                 300,
                 "test-relay");
         ClickEventMessage message = message();
@@ -66,6 +67,7 @@ class ClickEventOutboxRelayTest {
                 1000,
                 2.0,
                 60000,
+                10,
                 300,
                 "test-relay");
         ClickEventOutbox outbox = ClickEventOutbox.pending(
@@ -80,7 +82,11 @@ class ClickEventOutboxRelayTest {
 
         relay.publishPending();
 
-        verify(claimService).markFailed(eq(outbox), org.mockito.ArgumentMatchers.contains("broker unavailable"), eq(Duration.ofSeconds(1)));
+        verify(claimService).markFailed(
+                eq(outbox),
+                org.mockito.ArgumentMatchers.contains("broker unavailable"),
+                eq(Duration.ofSeconds(1)),
+                eq(10));
     }
 
     @Test
@@ -96,6 +102,7 @@ class ClickEventOutboxRelayTest {
                 1000,
                 2.0,
                 60000,
+                10,
                 300,
                 "test-relay");
         given(claimService.claimPending("test-relay", 100)).willReturn(List.of());

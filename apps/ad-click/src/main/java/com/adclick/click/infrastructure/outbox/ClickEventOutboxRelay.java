@@ -36,6 +36,7 @@ public class ClickEventOutboxRelay {
     private final double retryMultiplier;
     private final Duration retryMaxInterval;
     private final Duration processingTimeout;
+    private final int maxAttempts;
     private final String relayId;
 
     public ClickEventOutboxRelay(
@@ -47,6 +48,7 @@ public class ClickEventOutboxRelay {
             @Value("${adclick.kafka.outbox.relay.retry.initial-interval-ms:1000}") long retryInitialIntervalMs,
             @Value("${adclick.kafka.outbox.relay.retry.multiplier:2.0}") double retryMultiplier,
             @Value("${adclick.kafka.outbox.relay.retry.max-interval-ms:60000}") long retryMaxIntervalMs,
+            @Value("${adclick.kafka.outbox.relay.retry.max-attempts:10}") int maxAttempts,
             @Value("${adclick.kafka.outbox.relay.processing-timeout-seconds:300}") long processingTimeoutSeconds,
             @Value("${adclick.kafka.outbox.relay.id:}") String configuredRelayId) {
         this.claimService = claimService;
@@ -57,6 +59,7 @@ public class ClickEventOutboxRelay {
         this.retryInitialInterval = Duration.ofMillis(retryInitialIntervalMs);
         this.retryMultiplier = retryMultiplier;
         this.retryMaxInterval = Duration.ofMillis(retryMaxIntervalMs);
+        this.maxAttempts = maxAttempts;
         this.processingTimeout = Duration.ofSeconds(processingTimeoutSeconds);
         this.relayId = configuredRelayId == null || configuredRelayId.isBlank()
                 ? defaultRelayId()
@@ -92,7 +95,7 @@ public class ClickEventOutboxRelay {
                     event,
                     kafkaClickEventPublisher.publish(event.getTopic(), event.getMessageKey(), message));
         } catch (Exception e) {
-            claimService.markFailed(event, e.getMessage(), retryDelay(event.getAttemptCount()));
+            claimService.markFailed(event, e.getMessage(), retryDelay(event.getAttemptCount()), maxAttempts);
             log.warn("click event outbox publish failed. outboxId={}", event.getId(), e);
         }
         return PublishAttempt.failed(event);
@@ -107,10 +110,10 @@ public class ClickEventOutboxRelay {
             claimService.markPublished(attempt.event);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()));
+            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()), maxAttempts);
             log.warn("click event outbox publish interrupted. outboxId={}", attempt.event.getId(), e);
         } catch (Exception e) {
-            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()));
+            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()), maxAttempts);
             log.warn("click event outbox publish failed. outboxId={}", attempt.event.getId(), e);
         }
     }

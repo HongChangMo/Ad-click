@@ -64,12 +64,30 @@ class ClickEventOutboxClaimServiceTest {
         event.markProcessing("relay-1");
         given(repository.findById(event.getId())).willReturn(Optional.of(event));
 
-        service.markFailed(event, "broker unavailable", Duration.ofSeconds(5));
+        service.markFailed(event, "broker unavailable", Duration.ofSeconds(5), 10);
 
         verify(repository).findById(event.getId());
         assertThat(event.getStatus()).isEqualTo(ClickEventOutboxStatus.PENDING);
         assertThat(event.getAttemptCount()).isEqualTo(1);
         assertThat(event.getLastError()).isEqualTo("broker unavailable");
         assertThat(event.getNextRetryAt()).isAfter(LocalDateTime.now());
+    }
+
+    @Test
+    void markFailed_moves_row_to_failed_when_max_attempts_is_reached() {
+        ClickEventOutboxJpaRepository repository = mock(ClickEventOutboxJpaRepository.class);
+        ClickEventOutboxClaimService service = new ClickEventOutboxClaimService(repository);
+        ClickEventOutbox event = ClickEventOutbox.pending("ad-click-events", "1", "{}");
+        event.markProcessing("relay-1");
+        given(repository.findById(event.getId())).willReturn(Optional.of(event));
+
+        service.markFailed(event, "broker unavailable", Duration.ofSeconds(5), 1);
+
+        assertThat(event.getStatus()).isEqualTo(ClickEventOutboxStatus.FAILED);
+        assertThat(event.getAttemptCount()).isEqualTo(1);
+        assertThat(event.getLastError()).isEqualTo("broker unavailable");
+        assertThat(event.getClaimedBy()).isNull();
+        assertThat(event.getClaimedAt()).isNull();
+        assertThat(event.getFailedAt()).isNotNull();
     }
 }
