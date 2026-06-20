@@ -64,6 +64,9 @@ public class ClickEventOutbox {
     @Column(name = "published_at")
     private LocalDateTime publishedAt;
 
+    @Column(name = "failed_at")
+    private LocalDateTime failedAt;
+
     protected ClickEventOutbox() {
     }
 
@@ -91,17 +94,23 @@ public class ClickEventOutbox {
     public void markPublished() {
         this.status = ClickEventOutboxStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
+        this.failedAt = null;
         this.lastError = null;
         this.claimedBy = null;
         this.claimedAt = null;
     }
 
-    public void markFailed(String errorMessage, LocalDateTime nextRetryAt) {
-        this.status = ClickEventOutboxStatus.PENDING;
+    public void markFailed(String errorMessage, LocalDateTime nextRetryAt, int maxAttempts) {
         this.attemptCount++;
         this.lastError = truncate(errorMessage);
         this.claimedBy = null;
         this.claimedAt = null;
+        if (this.attemptCount >= maxAttempts) {
+            this.status = ClickEventOutboxStatus.FAILED;
+            this.failedAt = LocalDateTime.now();
+            return;
+        }
+        this.status = ClickEventOutboxStatus.PENDING;
         this.nextRetryAt = nextRetryAt;
     }
 
@@ -165,5 +174,9 @@ public class ClickEventOutbox {
 
     public LocalDateTime getPublishedAt() {
         return publishedAt;
+    }
+
+    public LocalDateTime getFailedAt() {
+        return failedAt;
     }
 }

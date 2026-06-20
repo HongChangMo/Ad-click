@@ -24,11 +24,16 @@ public class ClickEventAggregationConsumer {
             topics = "${adclick.kafka.topics.click-events:ad-click-events}",
             groupId = "${spring.kafka.consumer.group-id:ad-click-aggregation}")
     public void consume(List<ClickEventMessage> messages, Acknowledgment acknowledgment) {
-        int processedCount = aggregationService.aggregateAll(messages);
-        log.info(
-                "click event batch consumed for aggregation. receivedCount={}, processedCount={}",
-                messages.size(),
-                processedCount);
-        acknowledgment.acknowledge();
+        try {
+            int processedCount = aggregationService.aggregateAll(messages);
+            log.info(
+                    "click event batch consumed for aggregation. receivedCount={}, processedCount={}",
+                    messages.size(),
+                    processedCount);
+            acknowledgment.acknowledge();
+        } catch (RuntimeException e) {
+            log.error("click event batch aggregation failed. receivedCount={}", messages.size(), e);
+            throw e;
+        }
     }
 }

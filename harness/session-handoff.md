@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 027)
+## Last Updated: 2026-06-20 (Session 028)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 100개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 102개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -28,8 +28,8 @@
   - `KafkaClickEventPublisherTest` (1) — Unit
   - `OutboxClickEventPublisherTest` (1) — Unit
   - `ClickEventOutboxRelayTest` (3) — Unit
-  - `ClickEventOutboxClaimServiceTest` (3) — Unit
-  - `ClickEventAggregationConsumerTest` (1) — Unit
+  - `ClickEventOutboxClaimServiceTest` (4) — Unit
+  - `ClickEventAggregationConsumerTest` (2) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
@@ -61,6 +61,7 @@
 - `kafka-config-yml-split` feature: **done**
 - `kafka-batch-outbox-and-consumer` feature: **done**
 - `outbox-claim-retry-backoff` feature: **done**
+- `outbox-dlq-consumer-failure-policy` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -78,7 +79,26 @@
 
 ---
 
-## Changes This Session (Session 027)
+## Changes This Session (Session 028)
+
+- PR #15 `Outbox claim 분리와 retry backoff 추가` merge 완료.
+- Outbox 영구 실패 격리 추가.
+  - `ClickEventOutboxStatus.FAILED` 추가.
+  - `click_event_outbox.failed_at` 추가.
+  - retry 횟수가 `adclick.kafka.outbox.relay.retry.max-attempts` 이상이면 row를 `FAILED`로 격리.
+  - `FAILED` row는 producer-side DLQ로 운영 점검한다.
+- Kafka aggregation consumer 실패 정책 명시.
+  - batch DB 처리 성공 시에만 manual ack.
+  - 처리 실패 시 ack하지 않고 예외를 다시 던져 Kafka 재전달 대상 유지.
+- README/runbook/schema/harness 갱신.
+- 검증:
+  - `./gradlew :apps:ad-click:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 102개 PASS, test tasks up-to-date)
+  - `harness/feature_list.json` JSON parse OK
+  - `git diff --check` PASS
+
+## Changes Previous Session (Session 027)
 
 - Outbox relay의 DB lock 유지 시간을 줄이기 위해 claim transaction 분리.
 - `click_event_outbox` 필드 추가:

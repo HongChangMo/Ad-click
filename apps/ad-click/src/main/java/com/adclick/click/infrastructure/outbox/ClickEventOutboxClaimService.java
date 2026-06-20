@@ -45,8 +45,9 @@ public class ClickEventOutboxClaimService {
     }
 
     @Transactional
-    public void markFailed(ClickEventOutbox event, String errorMessage, Duration retryDelay) {
+    public void markFailed(ClickEventOutbox event, String errorMessage, Duration retryDelay, int maxAttempts) {
         LocalDateTime retryAt = LocalDateTime.now().plus(retryDelay);
-        outboxRepository.findById(event.getId()).ifPresent(found -> found.markFailed(errorMessage, retryAt));
+        outboxRepository.findById(event.getId())
+                .ifPresent(found -> found.markFailed(errorMessage, retryAt, maxAttempts));
     }
 }
