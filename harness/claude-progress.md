@@ -12,12 +12,51 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-13 완료 |
-| Current blocker | 없음 — reconciliation runner lock 구현 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-14 완료 |
+| Current blocker | 없음 — Kafka 클릭 이벤트 발행/소비 기반 구현 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 021 — 2026-06-20
+
+**Goal**
+MVP 2 priority 14 — Kafka 클릭 이벤트 발행 및 집계 Consumer 모듈 기반
+
+**Completed**
+- PR #9 `클릭 보정 Runner 중복 실행 방지` 머지 확인.
+- `apps:ad-aggregation` 모듈 추가.
+- `ad-click`에 `ClickEventPublisher` 포트와 `KafkaClickEventPublisher` 구현 추가.
+- `ClickEventMessage` 추가.
+- `ClickFacade`에서 클릭 이벤트 저장 후 transaction commit 이후 Kafka publish 수행.
+- Kafka publish 실패는 클릭 요청을 실패시키지 않고 fail-open 처리.
+- `ad-aggregation`에 `ClickEventAggregationConsumer` 추가.
+  - 현재는 수신 로그만 남기는 최소 연결 단계.
+- `docker-compose.yml`에 Kafka + Kafka UI 추가.
+  - Kafka: `localhost:9092`
+  - Kafka UI: `http://localhost:8081`
+- `application.yml`에 Kafka producer/consumer JSON 직렬화 설정 추가.
+- README/runbook/harness 갱신.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 90개 PASS
+```
+
+**Known issues / Lessons**
+- Kafka가 없는 테스트 환경에서 producer 메타데이터 대기를 줄이기 위해 `max.block.ms=100` 적용.
+- Kafka publish는 afterCommit direct publish 방식이므로 outbox 보장은 아직 없다.
+- Consumer는 아직 집계 테이블을 업데이트하지 않는다.
+- Kafka UI는 로컬 compose 편의 기능이다.
+
+**Next best action**
+Kafka foundation PR 리뷰/머지. 이후 집계 projection 테이블/idempotency 또는 outbox/retry 중 선택.
 
 ---
 

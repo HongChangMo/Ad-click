@@ -3,6 +3,7 @@ apply plugin: 'org.springframework.boot'
 dependencies {
     implementation project(':apps:ad-management')
     implementation project(':apps:ad-click')
+    implementation project(':apps:ad-aggregation')
     implementation 'org.springframework.boot:spring-boot-starter'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     runtimeOnly 'com.mysql:mysql-connector-j'

@@ -6,6 +6,8 @@
 - HTTP 포트: `8080`
 - MySQL: `localhost:3306`, database/user/password `adclick`
 - Valkey 호환 캐시: `localhost:6379`
+- Kafka: `localhost:9092`
+- Kafka UI: `http://localhost:8081`
 - 과금 정책: 조회 `VIEW=10`, 클릭 `CLICK=50`, 환불 `REFUND=50`
 
 ## 정상 플로우
@@ -38,6 +40,18 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - Valkey 연산은 Resilience4j retry + circuit breaker로 보호한다.
   - 기본 retry는 최대 2회, 50ms에서 시작해 2배수로 증가하며 최대 200ms를 넘지 않는다.
   - 장애가 반복되어 circuit이 열리면 Redis 호출을 잠시 건너뛰고 기존 fallback 경로를 사용한다.
+
+## Kafka 클릭 이벤트
+
+클릭 이벤트는 DB 저장 트랜잭션 commit 이후 Kafka topic으로 발행한다.
+
+- topic: `ad-click-events`
+- producer module: `ad-click`
+- consumer module: `ad-aggregation`
+- Kafka publish 실패는 클릭 요청을 실패시키지 않고 fail-open 처리한다.
+- 현재 consumer는 수신 로그만 남기는 최소 연결 단계다.
+
+Kafka UI에서 topic과 consumer group을 확인할 수 있다.
 
 ## Valkey 장애 구간 보정
 

@@ -4,6 +4,7 @@ import com.adclick.click.application.info.ClickInfo;
 import com.adclick.click.application.info.ClickStatsInfo;
 import com.adclick.click.domain.AbuseGuardPort;
 import com.adclick.click.domain.ClickEvent;
+import com.adclick.click.domain.ClickEventPublisher;
 import com.adclick.click.domain.ClickEventRepository;
 import com.adclick.click.domain.InvalidClickReason;
 import com.adclick.management.application.AdNotFoundException;
@@ -14,6 +15,8 @@ import com.adclick.management.domain.AdStatus;
 import com.adclick.management.domain.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,15 +33,18 @@ public class ClickFacade {
     private final BalanceFacade balanceFacade;
     private final ClickEventRepository clickEventRepository;
     private final AbuseGuardPort abuseGuardPort;
+    private final ClickEventPublisher clickEventPublisher;
 
     public ClickFacade(AdRepository adRepository,
                        BalanceFacade balanceFacade,
                        ClickEventRepository clickEventRepository,
-                       AbuseGuardPort abuseGuardPort) {
+                       AbuseGuardPort abuseGuardPort,
+                       ClickEventPublisher clickEventPublisher) {
         this.adRepository = adRepository;
         this.balanceFacade = balanceFacade;
         this.clickEventRepository = clickEventRepository;
         this.abuseGuardPort = abuseGuardPort;
+        this.clickEventPublisher = clickEventPublisher;
     }
 
     @Transactional
@@ -51,12 +57,16 @@ public class ClickFacade {
         Optional<InvalidClickReason> invalidReason = abuseGuardPort.checkAndMark(adId, ipAddress, anonymousId);
         if (invalidReason.isPresent()) {
             ClickEvent event = ClickEvent.invalid(adId, ipAddress, anonymousId, invalidReason.get());
-            return ClickInfo.from(clickEventRepository.save(event));
+            ClickEvent saved = clickEventRepository.save(event);
+            publishAfterCommit(saved);
+            return ClickInfo.from(saved);
         }
 
         balanceFacade.deduct(adId, CLICK_COST, TransactionType.CLICK);
         ClickEvent event = ClickEvent.valid(adId, ipAddress, anonymousId);
-        return ClickInfo.from(clickEventRepository.save(event));
+        ClickEvent saved = clickEventRepository.save(event);
+        publishAfterCommit(saved);
+        return ClickInfo.from(saved);
     }
 
     @Transactional(readOnly = true)
@@ -69,5 +79,14 @@ public class ClickFacade {
         long validCount = clickEventRepository.countByAdIdAndValidityBetween(adId, true, rangeFrom, rangeTo);
         long invalidCount = clickEventRepository.countByAdIdAndValidityBetween(adId, false, rangeFrom, rangeTo);
         return new ClickStatsInfo(adId, rangeFrom, rangeTo, validCount, invalidCount);
+    }
+
+    private void publishAfterCommit(ClickEvent event) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                clickEventPublisher.publish(event);
+            }
+        });
     }
 }
