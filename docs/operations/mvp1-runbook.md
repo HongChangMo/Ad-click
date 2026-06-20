@@ -48,6 +48,7 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 클릭 이벤트는 DB 저장 트랜잭션 안에서 outbox row로 함께 저장하고, outbox relay가 Kafka topic으로 발행한다.
 
 - topic: `ad-click-events`
+- DLT topic: `ad-click-events-dlt`
 - producer module: `ad-click`
 - consumer module: `ad-aggregation`
 - outbox table: `click_event_outbox`
@@ -59,7 +60,8 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - relay 장애로 PROCESSING에 남은 row는 `processing-timeout-seconds` 이후 PENDING으로 복구된다.
 - producer는 idempotence를 켠다: `enable.idempotence=true`, `acks=all`, `retries=Integer.MAX_VALUE`.
 - producer는 `batch-size`, `linger.ms`, `compression-type` 설정으로 broker 전송 효율을 높인다.
-- consumer는 batch listener와 manual ack를 사용하고, 한 트랜잭션의 DB batch 처리 성공 후 offset을 acknowledge한다. DB 처리 실패 시 ack하지 않고 예외를 다시 던져 Kafka 재전달 경로로 남긴다.
+- consumer는 batch listener와 manual ack를 사용하고, 한 트랜잭션의 DB batch 처리 성공 후 offset을 acknowledge한다. DB 처리 실패 시 ack하지 않고 예외를 다시 던진다.
+- consumer 실패는 `adclick.kafka.consumer.dlt.max-attempts`만큼 처리 시도 후 `adclick.kafka.topics.click-events-dlt` topic으로 격리한다.
 - consumer poll batch 크기는 `spring.kafka.consumer.properties.max.poll.records`로 조정한다.
 - consumer는 `processed_click_events.click_event_id`를 idempotency key로 사용한다.
 - consumer는 `click_daily_stats` 일별 projection을 업데이트한다.
@@ -91,6 +93,15 @@ curl -s -X POST http://localhost:8080/api/v1/admin/click-event-outbox/{outboxId}
 Kafka UI에서 topic과 consumer group을 확인할 수 있다.
 Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리한다.
 `application.yml`은 `spring.config.import=classpath:application-kafka.yml`로 해당 설정을 불러온다.
+
+Consumer DLT 점검:
+
+1. Kafka UI에서 `ad-click-events-dlt` topic 메시지를 확인한다.
+2. DLT 메시지의 key, payload, exception header를 확인한다.
+3. 집계 DB 장애나 schema 오류를 먼저 복구한다.
+4. 재처리가 필요하면 DLT 메시지를 원 topic `ad-click-events`로 재발행한다.
+
+운영 Kafka에서 topic auto-create가 비활성화되어 있다면 `ad-click-events`와 `ad-click-events-dlt`는 배포 전에 미리 생성한다.
 
 ## Valkey 장애 구간 보정
 

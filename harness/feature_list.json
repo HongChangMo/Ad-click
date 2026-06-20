@@ -356,6 +356,23 @@
       ],
       "evidence": "ClickEventOutboxAdminServiceTest: 3개 유닛 PASS. ClickEventOutboxAdminControllerTest: 2개 유닛 PASS. ./gradlew :apps:ad-click:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 107개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
       "notes": "엔드포인트는 GET /api/v1/admin/click-event-outbox/failed, POST /api/v1/admin/click-event-outbox/{outboxId}/retry. 인증/권한은 아직 없으므로 운영 노출 전 보강 필요."
+    },
+    {
+      "id": "kafka-consumer-dlt-runbook",
+      "priority": 23,
+      "area": "ad-aggregation/operations",
+      "title": "Kafka Consumer DLT와 로컬 장애 점검 가이드",
+      "user_visible_behavior": "집계 consumer가 반복 실패 메시지를 DLT topic으로 격리하고, 개발자가 로컬 실행/Kafka UI/outbox/DLT 장애 점검 절차를 문서로 확인할 수 있다.",
+      "status": "done",
+      "verification": [
+        "consumer batch 처리 실패 후 retry 소진 시 DLT topic으로 메시지가 발행되는지 Embedded Kafka 통합 테스트로 확인한다.",
+        "ad-api context가 DLT 설정 추가 후에도 Kafka 없는 테스트 환경에서 정상 로딩되는지 확인한다.",
+        "Kafka topic, DLT topic, retry 설정이 application-kafka.yml에서 관리되는지 확인한다.",
+        "README와 runbook에 DLT topic과 점검 절차가 반영됐는지 확인한다.",
+        "로컬 실행 및 장애 점검 가이드가 Kafka UI, outbox FAILED, consumer DLT 점검을 포함하는지 확인한다."
+      ],
+      "evidence": "ClickEventAggregationConsumerDltIntegrationTest: 1개 통합 PASS. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 108개 테스트 PASS. (2026-06-20)",
+      "notes": "Spring Kafka DefaultErrorHandler + DeadLetterPublishingRecoverer 사용. 운영 Kafka에서 topic auto-create가 꺼져 있으면 ad-click-events와 ad-click-events-dlt를 사전 생성해야 한다. DLT 메시지 재발행 API는 아직 없다."
     }
   ]
 }
