@@ -12,12 +12,38 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-17 완료 |
-| Current blocker | 없음 — 기술 책임 문서는 로컬 전용 ignore 대상으로 전환 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-18 완료 |
+| Current blocker | 없음 — Kafka 설정 파일 분리 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 025 — 2026-06-20
+
+**Goal**
+Kafka 설정 별도 yml 파일 분리
+
+**Completed**
+- Kafka 설정 위치 확인:
+  - 기존 위치: `apps/ad-api/src/main/resources/application.yml`
+  - 대상 설정: `spring.kafka.*`, `adclick.kafka.*`
+- `apps/ad-api/src/main/resources/application-kafka.yml` 추가.
+- `application.yml`에 `spring.config.import=classpath:application-kafka.yml` 추가.
+- README/runbook에 Kafka 설정 파일 위치 반영.
+
+**Verification run**
+```
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+```
+
+**Known issues / Lessons**
+- 테스트의 `DynamicPropertySource` override는 분리된 설정 파일 위에서도 정상 동작한다.
+
+**Next best action**
+Kafka 설정 분리 PR 생성/머지. 이후 관리자 통계 API 또는 outbox relay 병렬 처리/lock 보강 중 선택.
 
 ---
 

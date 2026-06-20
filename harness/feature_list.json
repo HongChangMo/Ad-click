@@ -270,6 +270,22 @@
       ],
       "evidence": "git rm --cached docs/architecture/technology-responsibilities.md 실행. .gitignore에 docs/architecture/technology-responsibilities.md 추가. README 링크 제거. README 테스트 수치 96개로 갱신. (2026-06-20)",
       "notes": "문서 파일은 로컬에는 남기되 Git에는 올리지 않는다."
+    },
+    {
+      "id": "kafka-config-yml-split",
+      "priority": 18,
+      "area": "ad-api config",
+      "title": "Kafka 설정 파일 분리",
+      "user_visible_behavior": "Kafka producer/consumer/topic/outbox relay 설정을 별도 yml 파일에서 관리한다.",
+      "status": "done",
+      "verification": [
+        "application.yml이 application-kafka.yml을 spring.config.import로 불러오는지 확인한다.",
+        "spring.kafka.* 설정이 application-kafka.yml로 이동했는지 확인한다.",
+        "adclick.kafka.* 설정이 application-kafka.yml로 이동했는지 확인한다.",
+        "ad-api 테스트 컨텍스트가 분리된 설정 파일을 정상 로딩하는지 확인한다."
+      ],
+      "evidence": "./gradlew :apps:ad-api:test BUILD SUCCESSFUL. README/runbook에 Kafka 설정 파일 위치 반영. (2026-06-20)",
+      "notes": "apps/ad-api/src/main/resources/application-kafka.yml 추가. application.yml에는 spring.config.import=classpath:application-kafka.yml만 남긴다."
     }
   ]
 }

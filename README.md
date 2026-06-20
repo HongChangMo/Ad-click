@@ -106,6 +106,8 @@ Kafka topic:
 - `click_daily_stats`: Kafka consumer가 업데이트하는 일별 집계 projection
 - outbox relay는 기본 활성화되어 있으며 `adclick.kafka.outbox.relay.fixed-delay-ms`와
   `adclick.kafka.outbox.relay.publish-timeout-ms`로 주기와 발행 대기 시간을 조정한다.
+- Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리하고,
+  `application.yml`은 `spring.config.import`로 해당 파일을 불러온다.
 
 Kafka UI:
 

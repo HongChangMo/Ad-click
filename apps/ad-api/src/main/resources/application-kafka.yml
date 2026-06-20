@@ -1,0 +1,34 @@
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 2147483647
+      properties:
+        enable.idempotence: true
+        max.block.ms: 100
+        max.in.flight.requests.per.connection: 5
+    consumer:
+      group-id: ad-click-aggregation
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "com.adclick.*"
+        spring.json.use.type.headers: false
+        spring.json.value.default.type: com.adclick.aggregation.message.ClickEventMessage
+    listener:
+      ack-mode: manual
+
+adclick:
+  kafka:
+    topics:
+      click-events: ad-click-events
+    outbox:
+      relay:
+        enabled: true
+        fixed-delay-ms: 1000
+        publish-timeout-ms: 1000
