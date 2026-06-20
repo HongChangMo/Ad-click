@@ -66,6 +66,10 @@ public class ClickEventOutbox {
         return new ClickEventOutbox(topic, messageKey, payload);
     }
 
+    public void markProcessing() {
+        this.status = ClickEventOutboxStatus.PROCESSING;
+    }
+
     public void markPublished() {
         this.status = ClickEventOutboxStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
@@ -73,6 +77,7 @@ public class ClickEventOutbox {
     }
 
     public void markFailed(String errorMessage) {
+        this.status = ClickEventOutboxStatus.PENDING;
         this.attemptCount++;
         this.lastError = truncate(errorMessage);
     }

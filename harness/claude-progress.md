@@ -12,12 +12,48 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-18 완료 |
-| Current blocker | 없음 — Kafka 설정 파일 분리 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-19 완료 |
+| Current blocker | 없음 — Kafka outbox/consumer batch 처리 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 026 — 2026-06-20
+
+**Goal**
+Kafka outbox relay와 consumer batch 처리
+
+**Completed**
+- Outbox relay를 batch 처리 구조로 변경.
+  - `PENDING` row를 `batch-size` 기준으로 조회.
+  - PENDING row 조회에 `PESSIMISTIC_WRITE` lock 적용.
+  - 조회 row를 `PROCESSING`으로 표시.
+  - Kafka send를 일괄 요청한 뒤 결과별 상태 갱신.
+  - 성공 row는 PUBLISHED, 실패 row는 PENDING으로 되돌려 retry 가능하게 처리.
+- Kafka consumer를 batch listener로 변경.
+  - `List<ClickEventMessage>` 수신.
+  - `ClickAggregationService.aggregateAll()`로 batch 처리.
+  - DB 처리 후 manual ack.
+- `application-kafka.yml`에 producer/consumer/listener/outbox batch 설정 추가.
+- README/runbook/harness 갱신.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 96개 PASS (test tasks up-to-date)
+```
+
+**Known issues / Lessons**
+- 현재 relay는 Kafka send 중 DB lock을 유지한다. 처리량이 더 커지면 claim transaction과 publish transaction을 분리하는 후속 작업이 필요하다.
+- Batch consumer는 DB 멱등성으로 중복 집계를 막지만, batch 일부 실패 정책과 DLQ는 아직 없다.
+
+**Next best action**
+전체 테스트 재검증 후 PR 생성/머지. 이후 outbox relay DB lock/claim 강화 또는 DLQ 정책 추가.
 
 ---
 

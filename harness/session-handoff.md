@@ -6,7 +6,7 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 025)
+## Last Updated: 2026-06-20 (Session 026)
 
 ---
 
@@ -58,6 +58,7 @@
 - `kafka-click-aggregation-integration-test` feature: **done**
 - `technology-responsibility-local-doc-ignore` feature: **done**
 - `kafka-config-yml-split` feature: **done**
+- `kafka-batch-outbox-and-consumer` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -67,13 +68,38 @@
 - MVP 2 feature list priority 16: **done**
 - MVP 2 feature list priority 17: **done**
 - MVP 2 feature list priority 18: **done**
+- MVP 2 feature list priority 19: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 025)
+## Changes This Session (Session 026)
+
+- Kafka 대량 트래픽 대비 batch 처리 구현.
+- Outbox relay 변경:
+  - `PENDING` row를 설정된 `batch-size`만큼 조회.
+  - PENDING row 조회에 `PESSIMISTIC_WRITE` lock 적용.
+  - 조회 row를 `PROCESSING`으로 표시.
+  - Kafka send를 먼저 일괄 요청한 뒤 결과별로 PUBLISHED/PENDING 상태 갱신.
+  - 실패 시 `attempt_count`, `last_error` 갱신 후 PENDING으로 되돌려 retry 가능하게 처리.
+- Kafka consumer 변경:
+  - `@KafkaListener`가 `List<ClickEventMessage>` batch를 수신.
+  - `ClickAggregationService.aggregateAll()`로 한 트랜잭션에서 batch 처리.
+  - DB 처리 후 manual ack.
+- `application-kafka.yml` batch 설정 추가:
+  - producer `batch-size=32768`, `linger.ms=20`, `compression-type=lz4`.
+  - consumer `max.poll.records=100`.
+  - listener `type=batch`.
+  - outbox relay `batch-size=100`.
+- README/runbook에 batch 처리 설정과 운영 기준 반영.
+- 검증:
+  - `./gradlew :apps:ad-click:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 96개 PASS, test tasks up-to-date)
+
+## Changes Previous Session (Session 025)
 
 - Kafka 설정을 `apps/ad-api/src/main/resources/application-kafka.yml`로 분리.
   - `spring.kafka.*` producer/consumer/listener 설정 이동.

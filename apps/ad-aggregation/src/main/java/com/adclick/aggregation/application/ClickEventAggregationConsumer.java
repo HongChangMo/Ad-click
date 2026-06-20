@@ -7,6 +7,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class ClickEventAggregationConsumer {
 
@@ -21,14 +23,12 @@ public class ClickEventAggregationConsumer {
     @KafkaListener(
             topics = "${adclick.kafka.topics.click-events:ad-click-events}",
             groupId = "${spring.kafka.consumer.group-id:ad-click-aggregation}")
-    public void consume(ClickEventMessage message, Acknowledgment acknowledgment) {
-        boolean processed = aggregationService.aggregate(message);
+    public void consume(List<ClickEventMessage> messages, Acknowledgment acknowledgment) {
+        int processedCount = aggregationService.aggregateAll(messages);
         log.info(
-                "click event consumed for aggregation. clickEventId={}, adId={}, valid={}, processed={}",
-                message.clickEventId(),
-                message.adId(),
-                message.valid(),
-                processed);
+                "click event batch consumed for aggregation. receivedCount={}, processedCount={}",
+                messages.size(),
+                processedCount);
         acknowledgment.acknowledge();
     }
 }
