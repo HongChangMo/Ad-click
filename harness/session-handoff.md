@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 026)
+## Last Updated: 2026-06-20 (Session 027)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 96개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 100개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -27,7 +27,8 @@
   - `ClickRateLimiterTest` (1) — Unit
   - `KafkaClickEventPublisherTest` (1) — Unit
   - `OutboxClickEventPublisherTest` (1) — Unit
-  - `ClickEventOutboxRelayTest` (2) — Unit
+  - `ClickEventOutboxRelayTest` (3) — Unit
+  - `ClickEventOutboxClaimServiceTest` (3) — Unit
   - `ClickEventAggregationConsumerTest` (1) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
@@ -59,6 +60,7 @@
 - `technology-responsibility-local-doc-ignore` feature: **done**
 - `kafka-config-yml-split` feature: **done**
 - `kafka-batch-outbox-and-consumer` feature: **done**
+- `outbox-claim-retry-backoff` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -69,13 +71,39 @@
 - MVP 2 feature list priority 17: **done**
 - MVP 2 feature list priority 18: **done**
 - MVP 2 feature list priority 19: **done**
+- MVP 2 feature list priority 20: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 026)
+## Changes This Session (Session 027)
+
+- Outbox relay의 DB lock 유지 시간을 줄이기 위해 claim transaction 분리.
+- `click_event_outbox` 필드 추가:
+  - `claimed_by`
+  - `claimed_at`
+  - `next_retry_at`
+- `ClickEventOutboxClaimService` 추가.
+  - PENDING row를 짧은 트랜잭션에서 PROCESSING으로 claim.
+  - stale PROCESSING row를 PENDING으로 복구.
+  - publish 성공/실패 결과를 별도 트랜잭션으로 기록.
+- `ClickEventOutboxRelay` 변경.
+  - claim 이후 DB lock 없이 Kafka publish 수행.
+  - 실패 시 지수 백오프 기반 `next_retry_at` 설정.
+  - 시작 시 stale PROCESSING row 복구 수행.
+- `application-kafka.yml`에 retry/processing-timeout 설정 추가.
+- `docs/schema.sql`, README, runbook, harness 갱신.
+- 추가 테스트:
+  - `ClickEventOutboxClaimServiceTest` (3)
+  - `ClickEventOutboxRelayTest` stale 복구 검증 추가.
+- 검증:
+  - `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 100개 PASS, test tasks up-to-date)
+
+## Changes Previous Session (Session 026)
 
 - Kafka 대량 트래픽 대비 batch 처리 구현.
 - Outbox relay 변경:

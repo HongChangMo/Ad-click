@@ -7,11 +7,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -26,38 +27,55 @@ public class ClickEventOutboxRelay {
 
     private static final Logger log = LoggerFactory.getLogger(ClickEventOutboxRelay.class);
 
-    private final ClickEventOutboxJpaRepository outboxRepository;
+    private final ClickEventOutboxClaimService claimService;
     private final KafkaClickEventPublisher kafkaClickEventPublisher;
     private final ObjectMapper objectMapper;
     private final long publishTimeoutMs;
     private final int batchSize;
+    private final Duration retryInitialInterval;
+    private final double retryMultiplier;
+    private final Duration retryMaxInterval;
+    private final Duration processingTimeout;
+    private final String relayId;
 
     public ClickEventOutboxRelay(
-            ClickEventOutboxJpaRepository outboxRepository,
+            ClickEventOutboxClaimService claimService,
             KafkaClickEventPublisher kafkaClickEventPublisher,
             ObjectMapper objectMapper,
             @Value("${adclick.kafka.outbox.relay.publish-timeout-ms:1000}") long publishTimeoutMs,
-            @Value("${adclick.kafka.outbox.relay.batch-size:100}") int batchSize) {
-        this.outboxRepository = outboxRepository;
+            @Value("${adclick.kafka.outbox.relay.batch-size:100}") int batchSize,
+            @Value("${adclick.kafka.outbox.relay.retry.initial-interval-ms:1000}") long retryInitialIntervalMs,
+            @Value("${adclick.kafka.outbox.relay.retry.multiplier:2.0}") double retryMultiplier,
+            @Value("${adclick.kafka.outbox.relay.retry.max-interval-ms:60000}") long retryMaxIntervalMs,
+            @Value("${adclick.kafka.outbox.relay.processing-timeout-seconds:300}") long processingTimeoutSeconds,
+            @Value("${adclick.kafka.outbox.relay.id:}") String configuredRelayId) {
+        this.claimService = claimService;
         this.kafkaClickEventPublisher = kafkaClickEventPublisher;
         this.objectMapper = objectMapper;
         this.publishTimeoutMs = publishTimeoutMs;
         this.batchSize = batchSize;
+        this.retryInitialInterval = Duration.ofMillis(retryInitialIntervalMs);
+        this.retryMultiplier = retryMultiplier;
+        this.retryMaxInterval = Duration.ofMillis(retryMaxIntervalMs);
+        this.processingTimeout = Duration.ofSeconds(processingTimeoutSeconds);
+        this.relayId = configuredRelayId == null || configuredRelayId.isBlank()
+                ? defaultRelayId()
+                : configuredRelayId;
     }
 
     @Scheduled(fixedDelayString = "${adclick.kafka.outbox.relay.fixed-delay-ms:1000}")
-    @Transactional
     public void publishPending() {
-        List<ClickEventOutbox> events = outboxRepository
-                .findByStatusOrderByCreatedAtAscIdAsc(
-                        ClickEventOutboxStatus.PENDING,
-                        PageRequest.of(0, batchSize));
+        int recoveredCount = claimService.recoverStaleProcessing(processingTimeout, batchSize);
+        if (recoveredCount > 0) {
+            log.info("stale click event outbox rows recovered. count={}", recoveredCount);
+        }
+
+        List<ClickEventOutbox> events = claimService.claimPending(relayId, batchSize);
 
         if (events.isEmpty()) {
             return;
         }
 
-        events.forEach(ClickEventOutbox::markProcessing);
         List<PublishAttempt> attempts = new ArrayList<>();
         for (ClickEventOutbox event : events) {
             attempts.add(send(event));
@@ -74,7 +92,7 @@ public class ClickEventOutboxRelay {
                     event,
                     kafkaClickEventPublisher.publish(event.getTopic(), event.getMessageKey(), message));
         } catch (Exception e) {
-            event.markFailed(e.getMessage());
+            claimService.markFailed(event, e.getMessage(), retryDelay(event.getAttemptCount()));
             log.warn("click event outbox publish failed. outboxId={}", event.getId(), e);
         }
         return PublishAttempt.failed(event);
@@ -86,14 +104,28 @@ public class ClickEventOutboxRelay {
         }
         try {
             attempt.future.get(publishTimeoutMs, TimeUnit.MILLISECONDS);
-            attempt.event.markPublished();
+            claimService.markPublished(attempt.event);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            attempt.event.markFailed(e.getMessage());
+            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()));
             log.warn("click event outbox publish interrupted. outboxId={}", attempt.event.getId(), e);
         } catch (Exception e) {
-            attempt.event.markFailed(e.getMessage());
+            claimService.markFailed(attempt.event, e.getMessage(), retryDelay(attempt.event.getAttemptCount()));
             log.warn("click event outbox publish failed. outboxId={}", attempt.event.getId(), e);
+        }
+    }
+
+    private Duration retryDelay(int attemptCount) {
+        double multiplier = Math.pow(retryMultiplier, Math.max(0, attemptCount));
+        long delayMs = Math.round(retryInitialInterval.toMillis() * multiplier);
+        return Duration.ofMillis(Math.min(delayMs, retryMaxInterval.toMillis()));
+    }
+
+    private String defaultRelayId() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (UnknownHostException e) {
+            return "unknown-relay";
         }
     }
 

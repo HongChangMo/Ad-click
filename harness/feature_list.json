@@ -303,7 +303,25 @@
         "ad-api context가 batch Kafka 설정을 정상 로딩하는지 확인한다."
       ],
       "evidence": "./gradlew :apps:ad-click:test :apps:ad-aggregation:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 96개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
-      "notes": "ClickEventOutboxStatus에 PROCESSING 추가. relay batch-size 기본값은 100. PENDING row 조회에는 PESSIMISTIC_WRITE lock을 적용해 다중 relay 인스턴스의 중복 claim을 줄인다. consumer listener type=batch, max.poll.records=100. producer batch-size=32768, linger.ms=20, compression-type=lz4 설정."
+      "notes": "ClickEventOutboxStatus에 PROCESSING 추가. relay batch-size 기본값은 100. consumer listener type=batch, max.poll.records=100. producer batch-size=32768, linger.ms=20, compression-type=lz4 설정. priority 20에서 claim transaction 분리와 retry backoff를 추가했다."
+    },
+    {
+      "id": "outbox-claim-retry-backoff",
+      "priority": 20,
+      "area": "ad-click",
+      "title": "Outbox Claim 분리와 Retry Backoff",
+      "user_visible_behavior": "Outbox relay가 Kafka 발행 중 DB lock을 오래 잡지 않고, 실패한 이벤트를 지수 백오프로 재시도하며, 오래된 PROCESSING row를 복구한다.",
+      "status": "done",
+      "verification": [
+        "PENDING row claim이 짧은 트랜잭션에서 PROCESSING 상태와 claimed_by/claimed_at을 기록하는지 확인한다.",
+        "Kafka publish는 claim transaction 이후 DB lock 없이 수행되는지 확인한다.",
+        "publish 성공 시 별도 트랜잭션으로 PUBLISHED 상태가 기록되는지 확인한다.",
+        "publish 실패 시 별도 트랜잭션으로 PENDING 상태, attempt_count, last_error, next_retry_at이 기록되는지 확인한다.",
+        "오래된 PROCESSING row가 processing-timeout 이후 PENDING으로 복구되는지 확인한다.",
+        "ad-api context가 claim/retry 설정과 outbox 엔티티 변경 후에도 정상 기동되는지 확인한다."
+      ],
+      "evidence": "ClickEventOutboxClaimServiceTest: 3개 유닛 PASS. ClickEventOutboxRelayTest: 3개 유닛 PASS. ./gradlew :apps:ad-click:test BUILD SUCCESSFUL. ./gradlew :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 100개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
+      "notes": "click_event_outbox에 claimed_by, claimed_at, next_retry_at 추가. retry 설정은 initial-interval-ms=1000, multiplier=2.0, max-interval-ms=60000. processing-timeout-seconds 기본값은 300."
     }
   ]
 }

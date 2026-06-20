@@ -15,9 +15,14 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "click_event_outbox",
-        indexes = @jakarta.persistence.Index(
-                name = "idx_click_event_outbox_status_created",
-                columnList = "status, created_at, id"))
+        indexes = {
+                @jakarta.persistence.Index(
+                        name = "idx_click_event_outbox_status_retry_created",
+                        columnList = "status, next_retry_at, created_at, id"),
+                @jakarta.persistence.Index(
+                        name = "idx_click_event_outbox_processing_claimed",
+                        columnList = "status, claimed_at, id")
+        })
 public class ClickEventOutbox {
 
     @Id
@@ -44,6 +49,15 @@ public class ClickEventOutbox {
     @Column(name = "last_error", length = 1000)
     private String lastError;
 
+    @Column(name = "claimed_by", length = 100)
+    private String claimedBy;
+
+    @Column(name = "claimed_at")
+    private LocalDateTime claimedAt;
+
+    @Column(name = "next_retry_at", nullable = false)
+    private LocalDateTime nextRetryAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -59,27 +73,43 @@ public class ClickEventOutbox {
         this.payload = payload;
         this.status = ClickEventOutboxStatus.PENDING;
         this.attemptCount = 0;
-        this.createdAt = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.nextRetryAt = now;
     }
 
     public static ClickEventOutbox pending(String topic, String messageKey, String payload) {
         return new ClickEventOutbox(topic, messageKey, payload);
     }
 
-    public void markProcessing() {
+    public void markProcessing(String claimedBy) {
         this.status = ClickEventOutboxStatus.PROCESSING;
+        this.claimedBy = claimedBy;
+        this.claimedAt = LocalDateTime.now();
     }
 
     public void markPublished() {
         this.status = ClickEventOutboxStatus.PUBLISHED;
         this.publishedAt = LocalDateTime.now();
         this.lastError = null;
+        this.claimedBy = null;
+        this.claimedAt = null;
     }
 
-    public void markFailed(String errorMessage) {
+    public void markFailed(String errorMessage, LocalDateTime nextRetryAt) {
         this.status = ClickEventOutboxStatus.PENDING;
         this.attemptCount++;
         this.lastError = truncate(errorMessage);
+        this.claimedBy = null;
+        this.claimedAt = null;
+        this.nextRetryAt = nextRetryAt;
+    }
+
+    public void markPendingForRetry(LocalDateTime nextRetryAt) {
+        this.status = ClickEventOutboxStatus.PENDING;
+        this.claimedBy = null;
+        this.claimedAt = null;
+        this.nextRetryAt = nextRetryAt;
     }
 
     private String truncate(String value) {
@@ -115,6 +145,18 @@ public class ClickEventOutbox {
 
     public String getLastError() {
         return lastError;
+    }
+
+    public String getClaimedBy() {
+        return claimedBy;
+    }
+
+    public LocalDateTime getClaimedAt() {
+        return claimedAt;
+    }
+
+    public LocalDateTime getNextRetryAt() {
+        return nextRetryAt;
     }
 
     public LocalDateTime getCreatedAt() {

@@ -48,7 +48,7 @@ Kafka UI는 `http://localhost:8081`에서 확인할 수 있습니다.
 ./gradlew test
 ```
 
-현재 전체 테스트는 96개입니다.
+현재 전체 테스트는 100개입니다.
 
 ## API 예시
 
@@ -106,6 +106,8 @@ Kafka topic:
 - `click_daily_stats`: Kafka consumer가 업데이트하는 일별 집계 projection
 - outbox relay는 기본 활성화되어 있으며 `adclick.kafka.outbox.relay.fixed-delay-ms`와
   `adclick.kafka.outbox.relay.batch-size`, `publish-timeout-ms`로 조회 배치 크기와 발행 대기 시간을 조정한다.
+- outbox relay는 짧은 트랜잭션에서 PENDING row를 PROCESSING으로 claim한 뒤 DB lock 없이 Kafka에 발행한다.
+- 실패 row는 지수 백오프 기반 `next_retry_at` 이후 재시도하고, 오래된 PROCESSING row는 timeout 이후 PENDING으로 복구한다.
 - Kafka consumer는 batch listener로 동작하며 `spring.kafka.consumer.properties.max.poll.records`로 poll batch 크기를 조정한다.
 - Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리하고,
   `application.yml`은 `spring.config.import`로 해당 파일을 불러온다.

@@ -46,10 +46,14 @@ CREATE TABLE IF NOT EXISTS click_event_outbox (
   status VARCHAR(20) NOT NULL,
   attempt_count INT NOT NULL,
   last_error VARCHAR(1000),
+  claimed_by VARCHAR(100),
+  claimed_at DATETIME(6),
+  next_retry_at DATETIME(6) NOT NULL,
   created_at DATETIME(6) NOT NULL,
   published_at DATETIME(6),
   PRIMARY KEY (id),
-  INDEX idx_click_event_outbox_status_created (status, created_at, id)
+  INDEX idx_click_event_outbox_status_retry_created (status, next_retry_at, created_at, id),
+  INDEX idx_click_event_outbox_processing_claimed (status, claimed_at, id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS processed_click_events (
