@@ -133,13 +133,13 @@
       "area": "ad-click",
       "title": "Valkey 장애 Fallback 처리",
       "user_visible_behavior": "Valkey 장애 시 어뷰징 체크를 건너뛰고 클릭을 허용(Fail Open)하며, Round Robin은 DB Fallback으로 ACTIVE 광고를 랜덤 반환한다.",
-      "status": "not_started",
+      "status": "done",
       "verification": [
         "Valkey 연결을 강제로 끊은 상태에서 클릭 요청이 500이 아닌 200으로 처리되는지 확인한다.",
         "Valkey 장애 중 GET /api/v1/ads/next 가 DB에서 ACTIVE 광고를 반환하는지 확인한다."
       ],
-      "evidence": "",
-      "notes": "1단계: Fail Open. 2단계: Circuit Breaker (Resilience4j) + DB Fallback 어뷰징 체크로 전환 예정"
+      "evidence": "AdRotationFacadeTest: getNextAd_falls_back_to_db_random_on_valkey_exception PASS. AdApiValkeyFallbackE2ETest: click_succeeds_when_valkey_is_unavailable, getNextAd_falls_back_to_db_when_valkey_is_unavailable PASS. 전체 ./gradlew test BUILD SUCCESSFUL, 총 68개 테스트 PASS. (2026-06-20)",
+      "notes": "1단계 Fail Open 완료. ClickRateLimiter와 ValKeyAbuseGuardAdapter는 Valkey RuntimeException 발생 시 요청을 허용한다. AdRotationFacade는 queuePort 장애 시 DB random ACTIVE fallback으로 전환한다. Circuit Breaker (Resilience4j) + DB Fallback 어뷰징 체크는 미래 확장."
     },
     {
       "id": "reconciliation-batch",

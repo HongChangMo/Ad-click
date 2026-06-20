@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 012)
+## Last Updated: 2026-06-20 (Session 013)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 66개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 68개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (12) — Unit
   - `AdRotationFacadeTest` (7) — Unit
@@ -23,6 +23,7 @@
   - `ValKeyRotationAdapterTest` (5) — Integration (Redis:7.2 Testcontainer)
   - `ValKeyAbuseGuardAdapterTest` (3) — Integration (Redis:7.2 Testcontainer)
   - `AdApiE2ETest` (19) — E2E (MySQL + Redis Testcontainer)
+  - `AdApiValkeyFallbackE2ETest` (2) — E2E (MySQL Testcontainer + unavailable Redis)
   - `AdClickApplicationTest` (1) — Context load
   - `DependencyDirectionTest` (1) — 의존 방향 단방향 확인
 - `ad-crud` feature: **done**
@@ -33,11 +34,20 @@
 - `ad-exhausted` feature: **done**
 - `abuse-guard` feature: **done**
 - `click-stats` feature: **done**
+- `valkey-fallback` feature: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 
 ---
 
-## Changes This Session (Session 012)
+## Changes This Session (Session 013)
+
+- `valkey-fallback` (priority 9) 검증 완료.
+  - `AdApiValkeyFallbackE2ETest` 추가.
+  - Redis unavailable 설정(`127.0.0.1:1`, 200ms timeout)에서 클릭 요청 200 + 잔액 차감 검증.
+  - Redis unavailable 설정에서 `/api/v1/ads/next`가 DB ACTIVE 광고를 반환하고 VIEW 차감하는지 검증.
+  - 기존 `ClickRateLimiter`, `ValKeyAbuseGuardAdapter`, `AdRotationFacade` fallback 구현에 대한 E2E 증거 확보.
+
+## Changes Previous Session (Session 012)
 
 - `click-stats` (priority 8) 구현 완료.
   - `ClickStatsInfo` 응답 record 추가.
@@ -174,13 +184,13 @@ com.adclick.click/
 
 ## Next Best Action
 
-**`valkey-fallback` (priority 9) 구현/검증:**
-- Valkey 장애 시 어뷰징 체크 fail-open 유지
-- Round Robin queue 장애 시 DB fallback으로 ACTIVE 광고 반환
-- 장애 상황 테스트 보강
+**`reconciliation-batch` (priority 10) 구현:**
+- Valkey 장애 구간 중복 클릭 사후 탐지
+- 중복 클릭 무효화/환불 정책 반영
+- 장애 구간 시작/종료 시각 기반 batch/use case 설계
 
 **건드리지 말아야 할 것**
-- priority 10+ 후속 기능: abuse scan batch, outbox/retry 등 미적용
+- priority 11+ 후속 기능: outbox/retry 등 미적용
 
 ---
 

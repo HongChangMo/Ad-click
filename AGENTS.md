@@ -124,10 +124,12 @@ ad-click -> ad-management
 6. Click rate-limit overflow returns HTTP 429.
 7. `GET /api/v1/ads/{adId}/clicks/stats` returns valid and invalid click
    counts filtered by optional `from` / `to` ISO date-time query params.
+8. When Valkey is unavailable, click requests fail open and ad rotation falls
+   back to DB random ACTIVE selection.
 
 Current known scope boundaries:
 
-- `valkey-fallback` priority 9 is not implemented yet.
+- `reconciliation-batch` priority 10 is not implemented yet.
 
 Do not silently implement later-priority behavior while working on an earlier
 feature unless the user explicitly expands the scope.
@@ -167,7 +169,7 @@ interfaces -> application -> domain <- infrastructure
 As of the latest handoff, the highest-priority unfinished feature is:
 
 ```text
-valkey-fallback (priority 9)
+reconciliation-batch (priority 10)
 ```
 
 Start there unless the user gives a newer instruction.

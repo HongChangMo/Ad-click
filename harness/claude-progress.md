@@ -12,12 +12,59 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | `valkey-fallback` (priority 9) — Valkey 장애 시 클릭 fail-open + rotation DB fallback |
-| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats 완성 |
+| Highest priority unfinished feature | `reconciliation-batch` (priority 10) — Valkey 장애 구간 중복 클릭 사후 보정 |
+| Current blocker | 없음 — ad-crud, balance-charge, ad-rotation, click-record, balance-concurrency, ad-exhausted, abuse-guard, click-stats, valkey-fallback 완성 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 013 — 2026-06-20
+
+**Goal**
+valkey-fallback (priority 9) — Valkey 장애 시 클릭 fail-open + rotation DB fallback 검증
+
+**Completed**
+- `AdApiValkeyFallbackE2ETest` 추가.
+  - Redis 컨테이너 없이 `spring.data.redis.port=1`로 Valkey 장애 상황 구성.
+  - 클릭 요청이 rate limiter/abuse guard Valkey 장애에도 200으로 처리되는지 검증.
+  - `/api/v1/ads/next`가 rotation queue Valkey 장애 시 DB ACTIVE 광고로 fallback되는지 검증.
+- 기존 구현 확인:
+  - `ClickRateLimiter`는 Valkey RuntimeException 시 `true` 반환.
+  - `ValKeyAbuseGuardAdapter`는 Valkey RuntimeException 시 `Optional.empty()` 반환.
+  - `AdRotationFacade`는 queuePort 장애 시 `nextAdFromDb()`로 fallback.
+
+**Verification run**
+```
+./gradlew :apps:ad-api:test --tests "com.adclick.AdApiValkeyFallbackE2ETest" → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  - AdFacadeTest: 3 PASSED
+  - BalanceFacadeTest: 12 PASSED
+  - AdRotationFacadeTest: 7 PASSED
+  - ClickFacadeTest: 8 PASSED
+  - AdJpaRepositoryTest: 1 PASSED
+  - AdBalanceJpaRepositoryTest: 2 PASSED
+  - ClickEventJpaRepositoryTest: 4 PASSED
+  - ValKeyRotationAdapterTest: 5 PASSED
+  - ValKeyAbuseGuardAdapterTest: 3 PASSED
+  - AdApiE2ETest: 19 PASSED
+  - AdApiValkeyFallbackE2ETest: 2 PASSED
+  - AdClickApplicationTest: 1 PASSED
+  - DependencyDirectionTest: 1 PASSED
+  전체 68개 PASS
+```
+
+**Evidence recorded**
+- feature_list.json: valkey-fallback status → done
+
+**Known issues / Lessons**
+- Testcontainers 종료 시 MySQL/Redis connection shutdown warning이 출력되지만 Gradle 결과는 BUILD SUCCESSFUL.
+- Circuit Breaker/Resilience4j는 아직 적용하지 않았고, 현재는 요구된 1단계 fail-open/fallback 동작 검증 완료 상태.
+
+**Next best action**
+`reconciliation-batch` (priority 10): Valkey 장애 구간 중복 클릭 사후 탐지/환불.
 
 ---
 
