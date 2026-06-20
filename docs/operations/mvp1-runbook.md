@@ -35,6 +35,9 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - 동일 `anonymous_id` 쿠키가 같은 광고를 60초 내 재클릭하면 `DUPLICATE_ANON`으로 무효 처리된다.
 - IP별 클릭 요청은 기본 60초 100회로 제한되며 초과 시 HTTP 429를 반환한다.
 - Valkey 장애 시 중복 방어와 rate limit은 fail-open으로 동작한다.
+- Valkey 연산은 Resilience4j retry + circuit breaker로 보호한다.
+  - 기본 retry는 최대 2회, 50ms에서 시작해 2배수로 증가하며 최대 200ms를 넘지 않는다.
+  - 장애가 반복되어 circuit이 열리면 Redis 호출을 잠시 건너뛰고 기존 fallback 경로를 사용한다.
 
 ## Valkey 장애 구간 보정
 
@@ -69,4 +72,4 @@ docker compose logs valkey
 - 인증/권한은 아직 없다.
 - 스키마 마이그레이션 도구는 아직 없다. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비한다.
 - reconciliation은 HTTP 수동 트리거 방식이다. 전용 batch runner는 MVP 2 후보이다.
-- Circuit breaker는 아직 없다. Valkey 예외는 코드 레벨 fail-open/fallback으로 처리한다.
+- Retry/circuit breaker metric/actuator 노출은 아직 없다.

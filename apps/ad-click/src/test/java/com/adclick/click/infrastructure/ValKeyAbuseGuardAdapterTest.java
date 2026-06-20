@@ -1,6 +1,7 @@
 package com.adclick.click.infrastructure;
 
 import com.adclick.click.domain.InvalidClickReason;
+import com.adclick.click.support.ValkeyCircuitBreaker;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +36,7 @@ class ValKeyAbuseGuardAdapterTest {
             DataSourceAutoConfiguration.class,
             HibernateJpaAutoConfiguration.class
     })
-    @Import(ValKeyAbuseGuardAdapter.class)
+    @Import({ValKeyAbuseGuardAdapter.class, ValkeyCircuitBreaker.class})
     static class RedisTestApplication {
     }
 

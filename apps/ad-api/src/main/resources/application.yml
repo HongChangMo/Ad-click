@@ -24,3 +24,17 @@ spring:
 
 server:
   port: 8080
+
+adclick:
+  valkey:
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 5
+      minimum-number-of-calls: 5
+      wait-duration-in-open-state-ms: 10000
+      permitted-half-open-calls: 2
+    retry:
+      max-attempts: 2
+      initial-interval-ms: 50
+      multiplier: 2.0
+      max-interval-ms: 200
