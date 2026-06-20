@@ -48,7 +48,7 @@ Kafka UI는 `http://localhost:8081`에서 확인할 수 있습니다.
 ./gradlew test
 ```
 
-현재 MVP 1 기준 전체 테스트는 77개입니다.
+현재 전체 테스트는 96개입니다.
 
 ## API 예시
 
@@ -114,7 +114,6 @@ Kafka UI:
 
 ## 운영 문서
 
-- [기술별 책임과 보장 범위](docs/architecture/technology-responsibilities.md)
 - [MVP 1 운영 절차](docs/operations/mvp1-runbook.md)
 - [로컬 스키마](docs/schema.sql)
 - [MVP 1 seed 데이터](docs/seed-mvp1.sql)

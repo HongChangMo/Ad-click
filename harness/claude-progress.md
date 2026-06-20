@@ -12,12 +12,38 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-16 완료 |
-| Current blocker | 없음 — Kafka 통합 테스트와 기술 책임 문서까지 추가 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-17 완료 |
+| Current blocker | 없음 — 기술 책임 문서는 로컬 전용 ignore 대상으로 전환 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 024 — 2026-06-20
+
+**Goal**
+기술 책임 문서 로컬 전용 전환
+
+**Completed**
+- PR #11 `Kafka 클릭 이벤트 Outbox relay 추가` squash merge 완료.
+- `docs/architecture/technology-responsibilities.md`를 Git 추적에서 제거하고 로컬 전용 문서로 전환.
+- `.gitignore`에 `docs/architecture/technology-responsibilities.md` 추가.
+- README에서 해당 문서 링크 제거.
+- README 테스트 수치를 현재 96개로 갱신.
+
+**Verification run**
+```
+node -e "JSON.parse(require('fs').readFileSync('harness/feature_list.json','utf8')); console.log('ok')" → ok
+git diff --check → PASS
+```
+
+**Known issues / Lessons**
+- README와 harness의 테스트 수치는 테스트 추가 후 함께 갱신해야 stale 문서가 생기지 않는다.
+
+**Next best action**
+문서 ignore 변경 검증 후 PR 생성/머지. 이후 관리자 통계 API 또는 outbox relay 병렬 처리/lock 보강 중 선택.
 
 ---
 
