@@ -57,6 +57,8 @@ seed 파일은 `TRUNCATE` 후 고정 ID로 데이터를 다시 넣는다. 운영
 - consumer는 `click_daily_stats` 일별 projection을 업데이트한다.
 
 Kafka UI에서 topic과 consumer group을 확인할 수 있다.
+Kafka 설정은 `apps/ad-api/src/main/resources/application-kafka.yml`에서 관리한다.
+`application.yml`은 `spring.config.import=classpath:application-kafka.yml`로 해당 설정을 불러온다.
 
 ## Valkey 장애 구간 보정
 

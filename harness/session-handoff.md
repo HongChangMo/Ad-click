@@ -6,7 +6,7 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 024)
+## Last Updated: 2026-06-20 (Session 025)
 
 ---
 
@@ -57,6 +57,7 @@
 - `kafka-click-outbox-relay` feature: **done**
 - `kafka-click-aggregation-integration-test` feature: **done**
 - `technology-responsibility-local-doc-ignore` feature: **done**
+- `kafka-config-yml-split` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
@@ -65,13 +66,24 @@
 - MVP 2 feature list priority 15: **done**
 - MVP 2 feature list priority 16: **done**
 - MVP 2 feature list priority 17: **done**
+- MVP 2 feature list priority 18: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 024)
+## Changes This Session (Session 025)
+
+- Kafka 설정을 `apps/ad-api/src/main/resources/application-kafka.yml`로 분리.
+  - `spring.kafka.*` producer/consumer/listener 설정 이동.
+  - `adclick.kafka.*` topic/outbox relay 설정 이동.
+  - `application.yml`에는 `spring.config.import=classpath:application-kafka.yml` 추가.
+- README/runbook에 Kafka 설정 파일 위치 반영.
+- 검증:
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+
+## Changes Previous Session (Session 024)
 
 - PR #11 `Kafka 클릭 이벤트 Outbox relay 추가` squash merge 완료.
 - `docs/architecture/technology-responsibilities.md`를 Git 추적에서 제거하고 로컬 전용 문서로 전환.
