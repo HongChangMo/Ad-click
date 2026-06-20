@@ -12,12 +12,47 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11 완료 |
-| Current blocker | 없음 — Valkey Retry + Circuit Breaker 구현 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-12 완료 |
+| Current blocker | 없음 — reconciliation runner 구현 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 019 — 2026-06-20
+
+**Goal**
+MVP 2 priority 12 — reconciliation runner 분리 및 스케줄 실행 옵션
+
+**Completed**
+- PR #7 `Valkey 경로 Retry 및 Circuit Breaker 도입` 머지 확인.
+- `ClickReconciliationRunner` 추가.
+  - 수동 API와 스케줄 job이 함께 쓰는 공통 보정 진입점.
+- `ScheduledClickReconciliationJob` 추가.
+  - `adclick.click.reconciliation.runner.enabled=true`일 때만 등록.
+  - `fixed-delay-ms`, `window-minutes`, `lag-seconds` 기준으로 최근 구간 보정.
+- `ClickReconciliationController`가 facade 직접 호출 대신 runner를 호출하도록 변경.
+- `AdClickApplication`에 `@EnableScheduling` 추가.
+- 기본 설정은 스케줄 runner 비활성화(`enabled=false`).
+- README/runbook에 runner 설정과 운영 주의점 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-click:test → BUILD SUCCESSFUL
+./gradlew :apps:ad-api:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 83개 PASS
+```
+
+**Known issues / Lessons**
+- 스케줄 runner는 단일 인스턴스 기준이다.
+- 다중 인스턴스 운영 시 분산 락 또는 외부 batch runner가 필요하다.
+- 기본값은 false로 두어 로컬/운영에서 의도치 않은 자동 보정을 막는다.
+
+**Next best action**
+Reconciliation runner PR 리뷰/머지. 이후 MVP 2 다음 후보 선택.
 
 ---
 

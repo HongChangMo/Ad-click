@@ -94,6 +94,9 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
   -d '{"from":"2026-06-20T10:00:00","to":"2026-06-20T10:10:00"}'
 ```
 
+보정 runner를 주기 실행하려면 `adclick.click.reconciliation.runner.enabled=true`로 설정합니다.
+기본값은 false입니다.
+
 ## 운영 문서
 
 - [MVP 1 운영 절차](docs/operations/mvp1-runbook.md)

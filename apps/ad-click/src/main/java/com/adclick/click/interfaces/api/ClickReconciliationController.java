@@ -1,6 +1,6 @@
 package com.adclick.click.interfaces.api;
 
-import com.adclick.click.application.ClickReconciliationFacade;
+import com.adclick.click.application.ClickReconciliationRunner;
 import com.adclick.click.application.info.ReconciliationInfo;
 import com.adclick.click.interfaces.api.dto.ReconciliationRequest;
 import org.springframework.http.ResponseEntity;
@@ -13,14 +13,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/clicks")
 public class ClickReconciliationController {
 
-    private final ClickReconciliationFacade reconciliationFacade;
+    private final ClickReconciliationRunner reconciliationRunner;
 
-    public ClickReconciliationController(ClickReconciliationFacade reconciliationFacade) {
-        this.reconciliationFacade = reconciliationFacade;
+    public ClickReconciliationController(ClickReconciliationRunner reconciliationRunner) {
+        this.reconciliationRunner = reconciliationRunner;
     }
 
     @PostMapping("/reconciliation")
     public ResponseEntity<ReconciliationInfo> reconcile(@RequestBody ReconciliationRequest request) {
-        return ResponseEntity.ok(reconciliationFacade.reconcile(request.from(), request.to()));
+        return ResponseEntity.ok(reconciliationRunner.runWindow(request.from(), request.to()));
     }
 }
