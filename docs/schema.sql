@@ -38,6 +38,20 @@ CREATE TABLE IF NOT EXISTS click_events (
   INDEX idx_click_stats (ad_id, clicked_at, is_valid)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS click_event_outbox (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  topic VARCHAR(100) NOT NULL,
+  message_key VARCHAR(100) NOT NULL,
+  payload TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  attempt_count INT NOT NULL,
+  last_error VARCHAR(1000),
+  created_at DATETIME(6) NOT NULL,
+  published_at DATETIME(6),
+  PRIMARY KEY (id),
+  INDEX idx_click_event_outbox_status_created (status, created_at, id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS processed_click_events (
   click_event_id BIGINT NOT NULL,
   processed_at DATETIME(6) NOT NULL,

@@ -33,6 +33,8 @@ class AdApiValkeyFallbackE2ETest {
         registry.add("spring.data.redis.port", () -> 1);
         registry.add("spring.data.redis.timeout", () -> "200ms");
         registry.add("spring.data.redis.connect-timeout", () -> "200ms");
+        registry.add("spring.kafka.listener.auto-startup", () -> false);
+        registry.add("adclick.kafka.outbox.relay.enabled", () -> false);
     }
 
     @Autowired

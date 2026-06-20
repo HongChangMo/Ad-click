@@ -213,7 +213,7 @@
       "user_visible_behavior": "클릭 이벤트 저장 후 Kafka topic으로 이벤트를 발행하고, 별도 집계 모듈이 중복 소비를 방지하면서 일별 클릭 집계를 갱신한다.",
       "status": "done",
       "verification": [
-        "클릭 이벤트 저장 후 transaction commit 이후 Kafka publisher가 호출되는지 확인한다.",
+        "클릭 이벤트 저장 후 ClickEventPublisher 포트가 호출되는지 확인한다.",
         "Kafka publisher가 ad-click-events topic으로 ClickEventMessage를 발행하는지 확인한다.",
         "ad-aggregation 모듈 consumer가 ClickEventMessage를 수신하고 DB 처리 후 manual ack를 호출하는지 확인한다.",
         "consumer가 processed_click_events.click_event_id 기준으로 같은 메시지를 한 번만 집계 반영하는지 확인한다.",
@@ -221,8 +221,25 @@
         "Kafka 브로커가 없어도 publish 실패가 클릭 요청을 실패시키지 않는지 확인한다.",
         "ad-api E2E context가 ad-aggregation 모듈 연결 후에도 정상 기동되는지 확인한다."
       ],
-      "evidence": "ClickFacadeTest: afterCommit publish 검증 추가 PASS. KafkaClickEventPublisherTest: 1개 유닛 PASS. ClickEventAggregationConsumerTest: 1개 유닛 PASS. ClickAggregationServiceTest: 2개 JPA 통합 PASS(idempotency + valid/invalid projection). ./gradlew :apps:ad-click:test :apps:ad-aggregation:test :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 92개 테스트 PASS. (2026-06-20)",
-      "notes": "apps:ad-aggregation 모듈 추가. ad-click-events topic 사용. Kafka UI를 docker-compose에 추가(http://localhost:8081). Producer idempotence 설정(enable.idempotence=true, acks=all, retries=Integer.MAX_VALUE, max.in.flight=5). Consumer는 enable-auto-commit=false/manual ack로 DB 처리 성공 후 offset ack. processed_click_events.click_event_id PK를 idempotency key로 사용하고 click_daily_stats 일별 projection을 업데이트한다. Outbox 없이 afterCommit direct publish를 사용하므로 DB commit 후 Kafka publish 실패 가능성은 남아 있고, publisher는 fail-open 처리한다."
+      "evidence": "ClickFacadeTest: publisher 호출 검증 PASS. KafkaClickEventPublisherTest: 1개 유닛 PASS. ClickEventAggregationConsumerTest: 1개 유닛 PASS. ClickAggregationServiceTest: 2개 JPA 통합 PASS(idempotency + valid/invalid projection). ./gradlew :apps:ad-click:test :apps:ad-aggregation:test :apps:ad-api:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 92개 테스트 PASS. (2026-06-20)",
+      "notes": "apps:ad-aggregation 모듈 추가. ad-click-events topic 사용. Kafka UI를 docker-compose에 추가(http://localhost:8081). Producer idempotence 설정(enable.idempotence=true, acks=all, retries=Integer.MAX_VALUE, max.in.flight=5). Consumer는 enable-auto-commit=false/manual ack로 DB 처리 성공 후 offset ack. processed_click_events.click_event_id PK를 idempotency key로 사용하고 click_daily_stats 일별 projection을 업데이트한다. 초기 구현은 afterCommit direct publish였고, priority 15에서 outbox relay로 보강했다."
+    },
+    {
+      "id": "kafka-click-outbox-relay",
+      "priority": 15,
+      "area": "ad-click",
+      "title": "Kafka 클릭 이벤트 Outbox 발행 및 재시도",
+      "user_visible_behavior": "클릭 저장과 Kafka 발행 예정 이벤트 저장을 같은 DB 트랜잭션으로 묶고, relay가 실패한 Kafka 발행을 재시도한다.",
+      "status": "done",
+      "verification": [
+        "ClickFacade가 클릭 저장 트랜잭션 내부에서 ClickEventPublisher를 호출하는지 확인한다.",
+        "OutboxClickEventPublisher가 ClickEventMessage payload를 click_event_outbox PENDING row로 저장하는지 확인한다.",
+        "ClickEventOutboxRelay가 PENDING row를 Kafka로 발행한 뒤 PUBLISHED로 전환하는지 확인한다.",
+        "Kafka 발행 실패 시 outbox row가 PENDING으로 남고 attempt_count와 last_error가 갱신되는지 확인한다.",
+        "ad-api 통합 테스트에서는 outbox relay와 Kafka listener를 비활성화해 외부 Kafka 없이 테스트가 안정적으로 종료되는지 확인한다."
+      ],
+      "evidence": "OutboxClickEventPublisherTest: 1개 유닛 PASS. ClickEventOutboxRelayTest: 2개 유닛 PASS. ./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test BUILD SUCCESSFUL. ./gradlew test BUILD SUCCESSFUL, 총 95개 테스트 PASS(test tasks up-to-date). (2026-06-20)",
+      "notes": "click_event_outbox 테이블 추가. 요청 경로는 Kafka 직접 전송 대신 outbox row 저장만 수행한다. relay는 기본 활성화(adclick.kafka.outbox.relay.enabled=true)이고 fixed-delay-ms/publish-timeout-ms 설정을 사용한다. relay 중복 발행 가능성은 consumer의 processed_click_events.click_event_id idempotency key로 흡수한다."
     }
   ]
 }

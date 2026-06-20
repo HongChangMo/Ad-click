@@ -6,13 +6,14 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 021)
+## Last Updated: 2026-06-20 (Session 022)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 92개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 95개 테스트 PASS)
+- `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
@@ -25,6 +26,8 @@
   - `ValKeyAbuseGuardAdapterCircuitBreakerTest` (1) — Unit
   - `ClickRateLimiterTest` (1) — Unit
   - `KafkaClickEventPublisherTest` (1) — Unit
+  - `OutboxClickEventPublisherTest` (1) — Unit
+  - `ClickEventOutboxRelayTest` (2) — Unit
   - `ClickEventAggregationConsumerTest` (1) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
@@ -50,18 +53,42 @@
 - `reconciliation-runner` feature: **done**
 - `reconciliation-lock` feature: **done**
 - `kafka-click-aggregation-foundation` feature: **done**
+- `kafka-click-outbox-relay` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
 - MVP 2 feature list priority 13: **done**
 - MVP 2 feature list priority 14: **done**
+- MVP 2 feature list priority 15: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 021)
+## Changes This Session (Session 022)
+
+- PR #10 `Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer 추가` squash merge 완료.
+- MVP 2 `kafka-click-outbox-relay` (priority 15) 구현 완료.
+- 클릭 이벤트 Kafka 발행 경로를 afterCommit direct publish에서 outbox relay 방식으로 변경.
+  - `ClickFacade`는 클릭 저장 트랜잭션 내부에서 `ClickEventPublisher` 포트를 호출한다.
+  - `OutboxClickEventPublisher`가 `click_event_outbox` PENDING row를 저장한다.
+  - `ClickEventOutboxRelay`가 PENDING row를 Kafka로 발행하고 성공 시 PUBLISHED로 전환한다.
+  - Kafka 발행 실패 시 PENDING 유지, `attempt_count` 증가, `last_error` 기록.
+- `KafkaClickEventPublisher`는 Kafka send adapter로 책임 축소.
+- `application.yml`에 `adclick.kafka.outbox.relay.*` 설정 추가.
+- `docs/schema.sql`에 `click_event_outbox` 테이블 추가.
+- ad-api 통합 테스트에서 Kafka listener와 outbox relay를 비활성화해 외부 Kafka 없이 테스트가 안정적으로 종료되도록 조정.
+- README/runbook/harness에 outbox relay 운영 기준 반영.
+- 추가 테스트:
+  - `OutboxClickEventPublisherTest` (1)
+  - `ClickEventOutboxRelayTest` (2)
+- 검증:
+  - `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 95개 PASS, test tasks up-to-date)
+
+## Changes Previous Session (Session 021)
 
 - PR #9 `클릭 보정 Runner 중복 실행 방지` 머지 확인.
 - MVP 2 `kafka-click-aggregation-foundation` (priority 14) 구현 완료.
@@ -346,7 +373,8 @@ com.adclick.click/
 - reconciliation은 HTTP 수동 트리거 방식. 전용 batch runner는 MVP 2 후보.
 - Resilience4j는 programmatic Retry + CircuitBreaker만 도입됨. Spring Boot Actuator/Prometheus metric 노출은 후속 운영성 후보.
 - Reconciliation scheduler는 Valkey TTL lock으로 중복 실행을 줄인다. Valkey 장애 시 fail-open이므로 강한 exactly-once batch 보장은 아님.
-- Kafka producer는 afterCommit direct publish 방식이다. Outbox/retry가 아직 없어 DB commit 후 Kafka publish 실패 가능성은 남아 있음.
+- Kafka producer는 outbox relay 방식이다. 클릭 저장과 발행 예정 이벤트 저장은 같은 DB 트랜잭션으로 묶인다.
+- relay는 at-least-once 발행 성격이므로 Kafka 중복 발행 가능성이 있다. 집계 consumer는 `processed_click_events.click_event_id`로 중복 집계를 방지한다.
 - Kafka consumer는 DB idempotency로 중복 집계 반영을 방지하지만 Kafka+DB 원자 트랜잭션은 아님.
 - 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
 - Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
@@ -364,10 +392,10 @@ com.adclick.click/
 **MVP 1 feature list 기준 priority 1-10 완료.**
 **MVP 2 priority 11-14 완료.**
 - Kafka click aggregation foundation PR 리뷰/머지.
-- 이후 MVP 2 다음 후보 선택: outbox/retry, 관리자 통계 API, Kafka 통합 테스트 중 택1.
+- 이후 MVP 2 다음 후보 선택: Kafka 통합 테스트, 관리자 통계 API, outbox relay 병렬 처리/lock 보강 중 택1.
 
 **건드리지 말아야 할 것**
-- 명시되지 않은 priority 15+ 후속 기능: outbox/retry 등 미적용
+- 명시되지 않은 priority 16+ 후속 기능: Kafka 통합 테스트, 관리자 통계 API 등 미적용
 
 ---
 

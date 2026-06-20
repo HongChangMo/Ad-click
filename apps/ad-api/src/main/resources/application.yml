@@ -53,6 +53,11 @@ adclick:
   kafka:
     topics:
       click-events: ad-click-events
+    outbox:
+      relay:
+        enabled: true
+        fixed-delay-ms: 1000
+        publish-timeout-ms: 1000
   click:
     reconciliation:
       runner:

@@ -15,8 +15,6 @@ import com.adclick.management.domain.AdStatus;
 import com.adclick.management.domain.TransactionType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -58,14 +56,14 @@ public class ClickFacade {
         if (invalidReason.isPresent()) {
             ClickEvent event = ClickEvent.invalid(adId, ipAddress, anonymousId, invalidReason.get());
             ClickEvent saved = clickEventRepository.save(event);
-            publishAfterCommit(saved);
+            clickEventPublisher.publish(saved);
             return ClickInfo.from(saved);
         }
 
         balanceFacade.deduct(adId, CLICK_COST, TransactionType.CLICK);
         ClickEvent event = ClickEvent.valid(adId, ipAddress, anonymousId);
         ClickEvent saved = clickEventRepository.save(event);
-        publishAfterCommit(saved);
+        clickEventPublisher.publish(saved);
         return ClickInfo.from(saved);
     }
 
@@ -81,12 +79,4 @@ public class ClickFacade {
         return new ClickStatsInfo(adId, rangeFrom, rangeTo, validCount, invalidCount);
     }
 
-    private void publishAfterCommit(ClickEvent event) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                clickEventPublisher.publish(event);
-            }
-        });
-    }
 }
