@@ -54,6 +54,22 @@ curl -s -X POST http://localhost:8080/api/v1/clicks/reconciliation \
 `DUPLICATE_IP`로 무효화한다. 무효화된 클릭 1건마다 50원을 광고 잔액에 환불하고
 `REFUND` 거래를 기록한다.
 
+수동 API와 별도로 보정 runner를 스케줄 실행할 수 있다. 기본값은 비활성화다.
+
+```yaml
+adclick:
+  click:
+    reconciliation:
+      runner:
+        enabled: true
+        fixed-delay-ms: 60000
+        window-minutes: 10
+        lag-seconds: 30
+```
+
+위 설정은 매 60초마다 현재 시각에서 30초 lag를 둔 최근 10분 구간을 보정한다.
+수동 API도 동일 runner를 사용하므로 보정 로직의 진입점은 하나로 유지된다.
+
 ## 점검 명령
 
 ```bash
@@ -71,5 +87,5 @@ docker compose logs valkey
 
 - 인증/권한은 아직 없다.
 - 스키마 마이그레이션 도구는 아직 없다. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비한다.
-- reconciliation은 HTTP 수동 트리거 방식이다. 전용 batch runner는 MVP 2 후보이다.
+- reconciliation 스케줄 runner는 property 기반으로 켜고 끌 수 있다. 운영 락/중복 실행 방지는 아직 없다.
 - Retry/circuit breaker metric/actuator 노출은 아직 없다.

@@ -26,6 +26,13 @@ server:
   port: 8080
 
 adclick:
+  click:
+    reconciliation:
+      runner:
+        enabled: false
+        fixed-delay-ms: 60000
+        window-minutes: 10
+        lag-seconds: 30
   valkey:
     circuit-breaker:
       failure-rate-threshold: 50

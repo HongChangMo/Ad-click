@@ -6,18 +6,20 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 018)
+## Last Updated: 2026-06-20 (Session 019)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 81개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 83개 테스트 PASS)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
   - `AdRotationFacadeTest` (7) — Unit
   - `ClickFacadeTest` (8) — Unit
   - `ClickReconciliationFacadeTest` (2) — Unit
+  - `ClickReconciliationRunnerTest` (1) — Unit
+  - `ScheduledClickReconciliationJobTest` (1) — Unit
   - `ValKeyRotationAdapterCircuitBreakerTest` (2) — Unit
   - `ValKeyAbuseGuardAdapterCircuitBreakerTest` (1) — Unit
   - `ClickRateLimiterTest` (1) — Unit
@@ -41,15 +43,38 @@
 - `valkey-fallback` feature: **done**
 - `reconciliation-batch` feature: **done**
 - `valkey-circuit-breaker` feature: **done**
+- `reconciliation-runner` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
+- MVP 2 feature list priority 12: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 018)
+## Changes This Session (Session 019)
+
+- PR #7 `Valkey 경로 Retry 및 Circuit Breaker 도입` 머지 확인.
+- MVP 2 `reconciliation-runner` (priority 12) 구현 완료.
+- `ClickReconciliationRunner` 추가.
+  - 수동 API와 스케줄 job이 함께 쓰는 공통 보정 진입점.
+- `ScheduledClickReconciliationJob` 추가.
+  - `adclick.click.reconciliation.runner.enabled=true`일 때만 등록.
+  - `fixed-delay-ms`, `window-minutes`, `lag-seconds` 설정으로 최근 구간을 주기 보정.
+- `ClickReconciliationController`가 facade 직접 호출 대신 runner를 호출하도록 변경.
+- `AdClickApplication`에 `@EnableScheduling` 추가.
+- 기본 설정은 스케줄 runner 비활성화(`enabled=false`).
+- README/runbook에 runner 설정과 운영 주의점 추가.
+- 추가 테스트:
+  - `ClickReconciliationRunnerTest` (1)
+  - `ScheduledClickReconciliationJobTest` (1)
+- 검증:
+  - `./gradlew :apps:ad-click:test` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 83개 PASS, test tasks up-to-date)
+
+## Changes Previous Session (Session 018)
 
 - PR #6 `MVP 1 로컬 실행 및 운영 문서 보강` 머지 확인.
 - MVP 2 첫 작업 `valkey-circuit-breaker` (priority 11) 구현 완료.
@@ -256,6 +281,7 @@ com.adclick.click/
 - 스키마 마이그레이션 도구는 아직 없음. 로컬 MVP 1 실행은 `docs/schema.sql`로 준비.
 - reconciliation은 HTTP 수동 트리거 방식. 전용 batch runner는 MVP 2 후보.
 - Resilience4j는 programmatic Retry + CircuitBreaker만 도입됨. Spring Boot Actuator/Prometheus metric 노출은 후속 운영성 후보.
+- Reconciliation scheduler는 단일 인스턴스 기준이다. 분산 락/중복 실행 방지는 아직 없음.
 - 테스트 `ddl-auto=create` 전환으로 Hibernate drop 종료 경고는 제거됨.
 - Redis/Lettuce reconnect cancellation warning은 일부 종료 시 남을 수 있지만 테스트 결과는 BUILD SUCCESSFUL.
 
@@ -270,12 +296,12 @@ com.adclick.click/
 ## Next Best Action
 
 **MVP 1 feature list 기준 priority 1-10 완료.**
-**MVP 2 priority 11 완료.**
-- Valkey circuit breaker PR 리뷰/머지.
-- 이후 MVP 2 다음 후보 선택: reconciliation batch runner 분리, outbox/retry, 관리자 통계/모니터링 API 중 택1.
+**MVP 2 priority 11-12 완료.**
+- Reconciliation runner PR 리뷰/머지.
+- 이후 MVP 2 다음 후보 선택: outbox/retry, 관리자 통계/모니터링 API, 인증/권한 중 택1.
 
 **건드리지 말아야 할 것**
-- 명시되지 않은 priority 12+ 후속 기능: outbox/retry 등 미적용
+- 명시되지 않은 priority 13+ 후속 기능: outbox/retry 등 미적용
 
 ---
 
