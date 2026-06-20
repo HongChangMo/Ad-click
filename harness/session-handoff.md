@@ -6,13 +6,13 @@
 
 ---
 
-## Last Updated: 2026-06-20 (Session 022)
+## Last Updated: 2026-06-20 (Session 023)
 
 ---
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 95개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 96개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -30,6 +30,7 @@
   - `ClickEventOutboxRelayTest` (2) — Unit
   - `ClickEventAggregationConsumerTest` (1) — Unit
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
+  - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
@@ -54,19 +55,37 @@
 - `reconciliation-lock` feature: **done**
 - `kafka-click-aggregation-foundation` feature: **done**
 - `kafka-click-outbox-relay` feature: **done**
+- `kafka-click-aggregation-integration-test` feature: **done**
 - MVP 1 feature list priority 1-10: **done**
 - MVP 2 feature list priority 11: **done**
 - MVP 2 feature list priority 12: **done**
 - MVP 2 feature list priority 13: **done**
 - MVP 2 feature list priority 14: **done**
 - MVP 2 feature list priority 15: **done**
+- MVP 2 feature list priority 16: **done**
 - Agent ownership: **Codex primary**, Claude secondary planning/review assistant
 - Local bootRun: **verified** with Docker Compose MySQL + Valkey-compatible Redis
 - Local seed data: **verified** (`docs/schema.sql` + `docs/seed-mvp1.sql`)
 
 ---
 
-## Changes This Session (Session 022)
+## Changes This Session (Session 023)
+
+- 개발자 설명용 문서 `docs/architecture/technology-responsibilities.md` 추가.
+  - Spring Boot API, MySQL, Valkey, Kafka, Kafka consumer idempotency, 보장 수준, 테스트 전략 정리.
+  - Kafka outbox relay의 at-least-once 발행과 consumer white box idempotency의 역할을 명시.
+- README 운영 문서 목록에 기술 책임 문서 링크 추가.
+- `ad-aggregation` Kafka 통합 테스트 추가.
+  - `ClickEventAggregationKafkaIntegrationTest`
+  - Embedded Kafka topic `ad-click-events-integration` 사용.
+  - MySQL Testcontainer로 `processed_click_events`, `click_daily_stats` 실제 DB 반영 검증.
+  - 같은 `clickEventId` 중복 메시지는 한 번만 집계되고, valid/invalid count가 분리 집계되는지 확인.
+- `ad-aggregation`에 `spring-boot-starter-json` 의존성 추가.
+- 검증:
+  - `./gradlew :apps:ad-aggregation:test` → BUILD SUCCESSFUL
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 96개 PASS)
+
+## Changes Previous Session (Session 022)
 
 - PR #10 `Kafka 클릭 이벤트 발행 및 멱등 집계 Consumer 추가` squash merge 완료.
 - MVP 2 `kafka-click-outbox-relay` (priority 15) 구현 완료.

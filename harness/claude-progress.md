@@ -12,12 +12,43 @@
 | Repository root | `/Users/zzangmo/project/AdClick` |
 | Standard startup path | `./gradlew :apps:ad-api:bootRun` (DB/Valkey 연결 필요) |
 | Standard verification path | `./gradlew test` |
-| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-15 완료 |
-| Current blocker | 없음 — Kafka outbox relay까지 구현 완료 |
+| Highest priority unfinished feature | 없음 — `harness/feature_list.json` 기준 MVP 1 priority 1-10 및 MVP 2 priority 11-16 완료 |
+| Current blocker | 없음 — Kafka 통합 테스트와 기술 책임 문서까지 추가 완료 |
 
 ---
 
 ## Session Records
+
+---
+
+### Session 023 — 2026-06-20
+
+**Goal**
+Kafka 통합 테스트 추가 및 기술별 책임 문서화
+
+**Completed**
+- `docs/architecture/technology-responsibilities.md` 추가.
+  - Spring Boot API, MySQL, Valkey, Kafka, Kafka consumer idempotency, 보장 수준, 테스트 전략 정리.
+- README 운영 문서 목록에 기술 책임 문서 링크 추가.
+- `ClickEventAggregationKafkaIntegrationTest` 추가.
+  - Embedded Kafka와 MySQL Testcontainer 조합.
+  - 중복 `clickEventId` 메시지가 한 번만 집계되는지 검증.
+  - valid/invalid 클릭이 `click_daily_stats`에 분리 집계되는지 검증.
+- `ad-aggregation`에 `spring-boot-starter-json` 의존성 추가.
+
+**Verification run**
+```
+./gradlew :apps:ad-aggregation:test → BUILD SUCCESSFUL
+./gradlew test → BUILD SUCCESSFUL
+  전체 96개 PASS
+```
+
+**Known issues / Lessons**
+- Embedded Kafka 종료 로그는 다소 길지만 테스트 실패는 아니다.
+- 통합 테스트 producer는 JavaTime 직렬화를 위해 테스트 전용 ObjectMapper를 명시한다.
+
+**Next best action**
+전체 테스트 재검증 후 PR #11에 추가 커밋 push. 이후 PR 리뷰/머지.
 
 ---
 

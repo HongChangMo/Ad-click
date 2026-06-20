@@ -114,6 +114,7 @@ Kafka UI:
 
 ## 운영 문서
 
+- [기술별 책임과 보장 범위](docs/architecture/technology-responsibilities.md)
 - [MVP 1 운영 절차](docs/operations/mvp1-runbook.md)
 - [로컬 스키마](docs/schema.sql)
 - [MVP 1 seed 데이터](docs/seed-mvp1.sql)
