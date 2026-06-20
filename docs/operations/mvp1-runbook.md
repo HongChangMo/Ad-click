@@ -101,7 +101,8 @@ Consumer DLT 점검:
 3. 집계 DB 장애나 schema 오류를 먼저 복구한다.
 4. 재처리가 필요하면 DLT 메시지를 원 topic `ad-click-events`로 재발행한다.
 
-운영 Kafka에서 topic auto-create가 비활성화되어 있다면 `ad-click-events`와 `ad-click-events-dlt`는 배포 전에 미리 생성한다.
+서버 기동 시 topic을 자동 생성하려면 `adclick.kafka.topics.auto-create-enabled=true`로 설정한다.
+운영 Kafka에서 topic auto-create가 비활성화되어 있거나 애플리케이션에 topic 생성 권한이 없다면 `ad-click-events`와 `ad-click-events-dlt`는 배포 전에 미리 생성한다.
 
 ## Valkey 장애 구간 보정
 

@@ -46,7 +46,16 @@ Kafka UI에서 다음 topic을 확인한다.
 - `ad-click-events-dlt`
 
 Consumer group은 `ad-click-aggregation`을 확인한다.
-운영 Kafka에서 topic auto-create가 비활성화되어 있다면 두 topic은 배포 전에 미리 생성한다.
+서버 기동 시 topic을 자동 생성하려면 다음 설정을 켠다.
+
+```yaml
+adclick:
+  kafka:
+    topics:
+      auto-create-enabled: true
+```
+
+운영 Kafka에서 topic auto-create가 비활성화되어 있거나 애플리케이션에 topic 생성 권한이 없다면 두 topic은 배포 전에 미리 생성한다.
 
 ## Outbox 장애 점검
 

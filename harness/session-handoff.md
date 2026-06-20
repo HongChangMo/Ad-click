@@ -12,7 +12,7 @@
 
 ## Currently Verified
 
-- `./gradlew test` → BUILD SUCCESSFUL (전체 108개 테스트 PASS)
+- `./gradlew test` → BUILD SUCCESSFUL (전체 110개 테스트 PASS)
 - `./gradlew :apps:ad-click:test :apps:ad-api:test :apps:ad-aggregation:test` → BUILD SUCCESSFUL (Session 022)
   - `AdFacadeTest` (3) — Unit
   - `BalanceFacadeTest` (14) — Unit
@@ -35,6 +35,7 @@
   - `ClickAggregationServiceTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventAggregationKafkaIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
   - `ClickEventAggregationConsumerDltIntegrationTest` (1) — Integration (Embedded Kafka + MySQL Testcontainer)
+  - `KafkaTopicConfigTest` (2) — Unit
   - `AdJpaRepositoryTest` (4) — Integration (MySQL Testcontainer)
   - `AdBalanceJpaRepositoryTest` (2) — Integration (MySQL Testcontainer)
   - `ClickEventJpaRepositoryTest` (5) — Integration (MySQL Testcontainer)
@@ -91,17 +92,22 @@
   - `KafkaConsumerDltConfig` 추가.
   - `DefaultErrorHandler`와 `DeadLetterPublishingRecoverer` 사용.
   - `adclick.kafka.topics.click-events-dlt` 추가.
+  - `adclick.kafka.topics.auto-create-enabled` 조건부 topic 자동 생성 설정 추가.
+  - `auto-create-enabled=false` 기본값으로 Kafka 없는 테스트/컨텍스트 지연 방지.
   - `adclick.kafka.consumer.dlt.retry-interval-ms`, `max-attempts` 추가.
 - Embedded Kafka 기반 DLT 통합 테스트 추가.
   - consumer batch 처리 실패 후 retry 소진 시 DLT topic으로 메시지가 발행되는지 검증.
+  - `KafkaTopicConfigTest` 추가.
+  - topic 자동 생성 bean이 property true에서만 생성되는지 검증.
 - 로컬 실행 및 장애 점검 가이드 추가.
   - `docs/operations/local-run-guide.md`
   - Kafka UI, outbox FAILED, consumer DLT, topic 사전 생성 주의사항 정리.
 - README/runbook 갱신.
 - 검증:
   - `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
+  - `./gradlew :apps:ad-aggregation:test --tests "com.adclick.aggregation.config.KafkaTopicConfigTest" --tests "com.adclick.aggregation.application.ClickEventAggregationConsumerDltIntegrationTest"` → BUILD SUCCESSFUL
   - `./gradlew :apps:ad-api:test` → BUILD SUCCESSFUL
-  - `./gradlew test` → BUILD SUCCESSFUL (전체 108개 PASS)
+  - `./gradlew test` → BUILD SUCCESSFUL (전체 110개 PASS)
   - `harness/feature_list.json` JSON parse OK
   - `git diff --check` PASS
 

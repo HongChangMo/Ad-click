@@ -31,6 +31,9 @@ spring:
 adclick:
   kafka:
     topics:
+      auto-create-enabled: false
+      partitions: 3
+      replicas: 1
       click-events: ad-click-events
       click-events-dlt: ad-click-events-dlt
     consumer:
